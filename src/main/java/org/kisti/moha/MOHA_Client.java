@@ -13,6 +13,7 @@ import java.util.Vector;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.GnuParser;
+import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.fs.FileStatus;
@@ -44,10 +45,8 @@ import org.slf4j.LoggerFactory;
 
 public class MOHA_Client {
 	private static final Logger LOG = LoggerFactory.getLogger(MOHA_Client.class);
-	// private static final String APP_NAME = "MOHA";
 	private YarnConfiguration conf;
 	private YarnClient yarnClient;
-	// private String appJar = "MOHA.jar";
 	private ApplicationId appId;
 	private FileSystem fs;
 
@@ -61,7 +60,52 @@ public class MOHA_Client {
 	private String jdlPath;
 	private long startingTime;
 
+	
+	public static void main(String[] args) throws IOException {	
+		//[UPDATE] Change the flow of the main function to enable exception handling at each step
+		/*
+		MOHA_Client client = new MOHA_Client(args);
+		
+		try {
+			boolean result = client.run();
+			LOG.info(String.valueOf(result));
+		} catch (YarnException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		*/
+		MOHA_Client client;
+		boolean result = false;
+		
+		LOG.info("Initializing the MOHA_Client");
+
+		try {
+			client = new MOHA_Client(args);
+			result = client.init(args);
+			
+			if(!result) {
+				LOG.info("Finishing the MOHA execution without YARN submission ...");
+				return;
+			}
+			
+			result = client.run();
+		} catch (IOException | ParseException | YarnException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}			
+		
+		if(result) {
+			LOG.info("The MOHA_Client is successfully executed");
+		}
+	}//The end of main function
+
+	
 	public MOHA_Client(String[] args) throws IOException {
+		//[UPDATE] Some logics are shifted into the main function
+		/*
 		try {
 			LOG.info("Start init MOHA_Client");
 			startingTime = System.currentTimeMillis();
@@ -75,65 +119,108 @@ public class MOHA_Client {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
-	}
-
+		*/
+		conf = new YarnConfiguration();
+		yarnClient = YarnClient.createYarnClient();
+		yarnClient.init(conf);
+		fs = FileSystem.get(conf);
+	}//The end of MOHA_Client constructor
+	
+	
 	public boolean init(String[] args) throws ParseException {
+		/* 
+		 * Add an option that only contains a short-name. It may be specified as requiring an argument.
+		   - Parameters
+		     : opt (Short single-character name of the option)
+		     : hasArg flag (signally if an argument is required after this option)
+		     : description (Self-documenting description)
+		   - Returns: the resulting Options instance
+		 */
+		//[UPDATE] change the hadArg flags into "true" except for the help option
 		Options option = new Options();
-		option.addOption("appname", false, "Application Name. Default value - MOHA");
-		option.addOption("priority", false, "Application Priority. Default value - 0");
-		option.addOption("queue", false,
-				"RM Queue in which this application is to be submitted. Default value - default");
-		option.addOption("manager_memory", true, "Amout of memory in MB to be requested to run the MOHA Manager");
-		option.addOption("jar", false,
-				"JAR file containing the MOHA Manager and Task Executor. Default value - ./MOHA.jar");
+		option.addOption("appname", true, "MOHA Application Name (Default: MOHA)");
+		option.addOption("priority", true, "Application Priority (Default: 0)");
+		option.addOption("queue", true,
+				"RM Queue in which this application is to be submitted (Default: default)");
+		option.addOption("manager_memory", true, 
+				"Amount of memory in MB to be requested to run the MOHA Manager (Default: 1024)");
+		option.addOption("jar", true,
+				"JAR file containing the MOHA Manager and Task Executor (Default: MOHA.jar)");
 		option.addOption("executor_memory", true,
-				"Amount of memory in MB to be requested to run the MOHA TaskExecutor");
-		option.addOption("num_executors", true, "Number of MOHA TaskEcecutor to be executed");
-		option.addOption("JDL", true, "Job Description Language file that contains the MOHA job specification");
+				"Amount of memory in MB to be requested to run the MOHA TaskExecutor (Default: 1024)");
+		option.addOption("num_executors", true, "Number of MOHA Task Executors (Default: 1)");
+		option.addOption("JDL", true, "Job Description Language file that contains the MOHA job specification (must specified)");		
+		option.addOption("help", false, "Print Usage of MOHA_Client"); //Add the help functionality in MOHA_Client
 
 		CommandLine inputParser = new GnuParser().parse(option, args);
+		
+		//[UPDATE] Add the help functionality in MOHA_Client
+		if (inputParser.hasOption("help")) {
+			printUsage(option);
+			return false;
+		}
+		
+		//[UPDATE] Add default values for options
 		appName = inputParser.getOptionValue("appname", "MOHA");
-
 		priority = Integer.parseInt(inputParser.getOptionValue("priority", "0"));
 		queue = inputParser.getOptionValue("queue", "default");
-		managerMemory = Integer.parseInt(inputParser.getOptionValue("manager_memory"));
+		managerMemory = Integer.parseInt(inputParser.getOptionValue("manager_memory", "1024"));
 		jarPath = inputParser.getOptionValue("jar", "MOHA.jar");
-		executorMemory = Integer.parseInt(inputParser.getOptionValue("executor_memory"));
-		numExecutors = Integer.parseInt(inputParser.getOptionValue("num_executors"));
+		executorMemory = Integer.parseInt(inputParser.getOptionValue("executor_memory", "1024"));
+		numExecutors = Integer.parseInt(inputParser.getOptionValue("num_executors", "1"));
+		
+		//[UPDATE] The Job Description File is necessary to execute MOHA tasks
+		if(!inputParser.hasOption("JDL")) {
+			LOG.error("The Job Description File should be provided !");
+			return false;
+		}
 		jdlPath = inputParser.getOptionValue("JDL");
 
+		//[UPDATE] change the exception handling logic to avoid unnecessary exception throwing
 		if (priority < 0) {
-			throw new IllegalArgumentException("Invalid value specified for Application Priority");
+			LOG.error("Invalid value is specified for the Application Priority");
+			return false;
+			//throw new IllegalArgumentException("Invalid value specified for Application Priority");
 		}
-		if (managerMemory < 32) {
-			throw new IllegalArgumentException(
-					"Invalid value specified for amout of memory in MB to be requested to run the MOHA Manager");
+		
+		//[UPDATE] Unless there is a minimum memory requirement, positive values look O.K.
+		//if (managerMemory < 32) {
+		if (managerMemory <= 0) {
+			LOG.error("Invalid value is specified for the amount of memory of the MOHA Manager");
+			return false;
+			//throw new IllegalArgumentException(
+			//		"Invalid value specified for amout of memory in MB to be requested to run the MOHA Manager");
 		}
-		if (executorMemory < 32) {
-			throw new IllegalArgumentException(
-					"Invalid value specified for amount of memory in MB to be requested to run the MOHA TaskExecutor");
+		
+		//if (executorMemory < 32) {
+		if (executorMemory <= 0) {
+			LOG.error("Invalid value is specified for the amount of memory of the MOHA TaskExecutor");
+			return false;
+			//throw new IllegalArgumentException(
+			//		"Invalid value specified for amount of memory in MB to be requested to run the MOHA TaskExecutor");
 		}
+		
 		if (numExecutors < 1) {
-			throw new IllegalArgumentException(
-					"Invalid value specified for number of MOHA TaskEcecutor to be executed");
+			LOG.error("Invalid value is specified for the number of MOHA TaskExecutors");
+			return false;
+			//throw new IllegalArgumentException(
+			//		"Invalid value specified for number of MOHA TaskEcecutor to be executed");
 		}
-		LOG.info(
-				"App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, num ececutors = {}, jdl path = {}",
-				appName, priority, queue, managerMemory, jarPath, executorMemory, numExecutors, jdlPath);
-//		KafkaProducer<Integer, String> producer;
-//		Properties props = new Properties();
-//		props.put("bootstrap.servers", "localhost:9092");
-//		props.put("client.id", "test");
-//		props.put("key.serializer", "org.apache.kafka.common.serialization.IntegerSerializer");
-//		props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-//		producer = new KafkaProducer<Integer, String>(props);
-//		producer.send(new ProducerRecord<Integer, String>("test", 1, "Successfully init MOHA_Client"));
+		
+		LOG.info("App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, "
+				+ "num ececutors = {}, jdl path = {}", appName, priority, queue, managerMemory, jarPath, executorMemory, 
+				numExecutors, jdlPath);
+
 		return true;
+	}//The end of init function
+	
+	
+	private void printUsage(Options opts) {
+		new HelpFormatter().printHelp("MOHA_Client", opts);
 	}
+	
 
 	public boolean run() throws YarnException, IOException {
-
 		LOG.info("yarnClient = {}", yarnClient.toString());
 		yarnClient.start();
 		YarnClientApplication yarnClientApplication = yarnClient.createApplication();
@@ -203,8 +290,8 @@ public class MOHA_Client {
 				YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
 			classPathEnv.append(File.pathSeparatorChar);
 			classPathEnv.append(c.trim());
-
 		}
+		
 		Properties prop = new Properties();
 		/* Loading MOHA.Conf File */
 		String kafka_libs ="default";
@@ -242,8 +329,8 @@ public class MOHA_Client {
 		vargs.add(String.valueOf(numExecutors));
 		vargs.add(MOHA_Properties.jdl);
 		vargs.add(String.valueOf(startingTime));
-		vargs.add("1><LOG_DIR>/AppMaster.stdout");
-		vargs.add("2><LOG_DIR>/AppMaster.stderr");
+		vargs.add("1><LOG_DIR>/MOHA_Manager.stdout");
+		vargs.add("2><LOG_DIR>/MOHA_Manager.stderr");
 		StringBuilder command = new StringBuilder();
 		for (CharSequence str : vargs) {
 			command.append(str).append(" ");
@@ -269,23 +356,6 @@ public class MOHA_Client {
 		yarnClient.submitApplication(appContext);
 
 		return true;
-	}
+	}//The end of run function
 
-	public static void main(String[] args) throws IOException {
-		// TODO Auto-generated method stub
-		
-		MOHA_Client client = new MOHA_Client(args);
-		try {
-			boolean result = client.run();
-			LOG.info(String.valueOf(result));
-		} catch (YarnException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-	}
-
-}
+}//The end of MOHA_Client class

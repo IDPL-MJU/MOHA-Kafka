@@ -1,8 +1,5 @@
 project.ext.archiveName = 'MOHA.jar'
 
-
-
-
 apply plugin: 'java'
 apply plugin: 'maven'
 apply plugin: 'eclipse'

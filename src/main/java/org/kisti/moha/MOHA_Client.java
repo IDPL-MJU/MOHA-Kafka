@@ -229,8 +229,8 @@ public class MOHA_Client {
 		
 		LOG.info("Application ID = {}", appId);
 		int maxMemory = appResponse.getMaximumResourceCapability().getMemory();
-		if (managerMemory > (maxMemory / 2)) {
-			managerMemory = maxMemory / 2;
+		if (managerMemory > (maxMemory)) {
+			managerMemory = maxMemory;
 		}
 		int maxVcores = appResponse.getMaximumResourceCapability().getVirtualCores();
 		LOG.info("Max memory = {} and max vcores = {}", maxMemory, maxVcores);

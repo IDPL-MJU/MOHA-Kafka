@@ -150,8 +150,9 @@ public class MOHA_TaskExecutor {
 				//outQueue.push("count = "+records.count());
 			}
 			//LOG.info("count = {}",records.count());
-			if ((records.count() > 0)&&((expiredTime - startingTime)<480000)){
+			if ((records.count() > 0)&&((expiredTime - startingTime)<48000)){
 				//LOG.info("Before commit");
+				LOG.info(outQueue.push("inQueue.commitSync()"));
 				inQueue.commitSync();
 				//LOG.info("After commit");
 				

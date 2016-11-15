@@ -2,8 +2,9 @@ package org.kisti.moha;
 
 import org.mortbay.log.Log;
 
-public class MOHA_AppInfo {
+public class MOHA_Info {
 	private  String appId;
+	private String queueName;
 	private  int executorMemory;
 	private  int numExecutors;
 	private  String jdlPath;
@@ -81,6 +82,12 @@ public class MOHA_AppInfo {
 	}
 	public void setCommand(String command) {
 		this.command = command;
+	}
+	public String getQueueName() {
+		return queueName;
+	}
+	public void setQueueName(String queueName) {
+		this.queueName = queueName;
 	}
 	
 }

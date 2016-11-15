@@ -12,6 +12,7 @@ public class MOHA_ExecutorInfo {
 	private long runningTime;
 	private int pollingTime;
 	private long endingTime;
+	private String queueName;
 	public long getEndingTime() {
 		return endingTime;
 	}
@@ -74,5 +75,11 @@ public class MOHA_ExecutorInfo {
 	}
 	public void setRunningTime(long exitTime) {
 		this.runningTime = exitTime;
+	}
+	public String getQueueName() {
+		return queueName;
+	}
+	public void setQueueName(String queueName) {
+		this.queueName = queueName;
 	}
 }

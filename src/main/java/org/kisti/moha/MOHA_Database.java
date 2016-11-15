@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 public class MOHA_Database {
 	private static final Logger LOG = LoggerFactory.getLogger(MOHA_TaskExecutor.class);
 
-	public Connection getConnection() {
+	private Connection getConnection() {
 
 		String URL = MOHA_Properties.Db;
 		String username = "moha_user";
@@ -42,7 +42,7 @@ public class MOHA_Database {
 
 	}
 
-	public void runCommand(String sql) {
+	private void runCommand(String sql) {
 		Connection connection = null;
 		PreparedStatement preStmt = null;
 		LOG.info("sql command : {}", sql);
@@ -60,29 +60,42 @@ public class MOHA_Database {
 	}
 
 	public void executorInsert(MOHA_ExecutorInfo eInfo) {
-		// TODO Auto-generated method stub
-		String sql = "insert into " + MOHA_Properties.ExecutorDb
-				+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
-				+ eInfo.getAppId() + "\"" + ",\"" + eInfo.getExecutorId() + "\"" + ",\"" + eInfo.getContainerId() + "\""
-				+ ",\"" + eInfo.getHostname() + "\"" + ",\"" + convertLongToDate(eInfo.getLaunchedTime()) + "\"" + ","
-				+ eInfo.getNumExecutedTasks() + "," + eInfo.getRunningTime() + "," + eInfo.getLaunchedTime()+ "," + eInfo.getFirstMessageTime()+ "," + eInfo.getPollingTime() + "," + eInfo.getEndingTime() +")";
+		if (MOHA_Properties.DEBUG_MYSQL) {
+			String sql = "insert into " + MOHA_Properties.ExecutorDb
+					+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
+					+ eInfo.getAppId() + "\"" + ",\"" + eInfo.getExecutorId() + "\"" + ",\"" + eInfo.getContainerId()
+					+ "\"" + ",\"" + eInfo.getHostname() + "\"" + ",\"" + convertLongToDate(eInfo.getLaunchedTime())
+					+ "\"" + "," + eInfo.getNumExecutedTasks() + "," + eInfo.getRunningTime() + ","
+					+ eInfo.getLaunchedTime() + "," + eInfo.getFirstMessageTime() + "," + eInfo.getPollingTime() + ","
+					+ eInfo.getEndingTime() + ")";
 
-		runCommand(sql);
+			runCommand(sql);
+		} else {
+			LOG.info("----------------");
+		}
+
 	}
 
-	public void appInfoInsert(MOHA_AppInfo appInfo) {
-		String sql = "insert into " + MOHA_Properties.AppDb
-				+ "(appId, executorMemory, numExecutors, numPartitions, startingTime, initTime,makespan, numCommands, command) values (\""
-				+ appInfo.getAppId() + "\"," + appInfo.getExecutorMemory() + "," + appInfo.getNumExecutors() + ","
-				+ appInfo.getNumPartitions() + "," + "\" " + convertLongToDate(appInfo.getStartingTime()) + "\","+ appInfo.getInitTime() + ","
-				+ appInfo.getMakespan() + "," + appInfo.getNumCommands() + ",\"" + appInfo.getCommand() + "\")";
+	public void appInfoInsert(MOHA_Info appInfo) {
 
-		runCommand(sql);
-		sql = "update " +  MOHA_Properties.ExecutorDb + " set " + " allocationTime = " + appInfo.getAllocationTime() + " where appId = \""  + appInfo.getAppId() +"\"";
-		runCommand(sql);
+		if (MOHA_Properties.DEBUG_MYSQL) {
+			String sql = "insert into " + MOHA_Properties.AppDb
+					+ "(appId, executorMemory, numExecutors, numPartitions, startingTime, initTime,makespan, numCommands, command) values (\""
+					+ appInfo.getAppId() + "\"," + appInfo.getExecutorMemory() + "," + appInfo.getNumExecutors() + ","
+					+ appInfo.getNumPartitions() + "," + "\" " + convertLongToDate(appInfo.getStartingTime()) + "\","
+					+ appInfo.getInitTime() + "," + appInfo.getMakespan() + "," + appInfo.getNumCommands() + ",\""
+					+ appInfo.getCommand() + "\")";
+
+			runCommand(sql);
+			sql = "update " + MOHA_Properties.ExecutorDb + " set " + " allocationTime = " + appInfo.getAllocationTime()
+					+ " where appId = \"" + appInfo.getAppId() + "\"";
+			runCommand(sql);
+		} else {
+			LOG.info("----------------");
+		}
 	}
 
-	public String convertLongToDate(long dateMilisecs) {
+	private String convertLongToDate(long dateMilisecs) {
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
 
 		GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("US/Central"));
@@ -93,7 +106,8 @@ public class MOHA_Database {
 		return dateFormat;
 	}
 
-	public long convertDateToLong(String dateTime) {
+	@SuppressWarnings("unused")
+	private long convertDateToLong(String dateTime) {
 		long timeMillis = 0;
 
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
@@ -114,7 +128,7 @@ public class MOHA_Database {
 	}
 
 	public static void main(String[] args) {
-		MOHA_AppInfo appInfo = new MOHA_AppInfo();
+		MOHA_Info appInfo = new MOHA_Info();
 		MOHA_ExecutorInfo info = new MOHA_ExecutorInfo();
 		MOHA_Database data = new MOHA_Database();
 		data.appInfoInsert(appInfo);

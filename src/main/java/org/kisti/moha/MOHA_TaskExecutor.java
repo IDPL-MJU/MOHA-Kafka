@@ -1,73 +1,54 @@
 package org.kisti.moha;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-
-import java.util.List;
-
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.mortbay.log.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MOHA_TaskExecutor {
 	private static final Logger LOG = LoggerFactory.getLogger(MOHA_TaskExecutor.class);
-	private String hostname;
+	
 	private YarnConfiguration conf;
 
-	private String appId;
-	private final String inputQueueName;
-	private final String outputQueueName;
-	private final String containerId;
-	private final String id;
+
 	private static MOHA_Queue inQueue;
-	private static MOHA_Queue outQueue;
+	private static MOHA_Logger debugLogger;
 	
-	private static MOHA_Queue mohaStatistic;
 	private MOHA_ExecutorInfo info;
 	private MOHA_Database data;
 
 	public MOHA_TaskExecutor(String[] args) throws IOException {
 		// TODO Auto-generated constructor stub
 		info = new MOHA_ExecutorInfo();
+		info.setAppId(args[0]);
+		info.setContainerId(args[1]);
+		info.setExecutorId(args[2]);			
+		info.setHostname(NetUtils.getHostname());
 		info.setLaunchedTime(System.currentTimeMillis());
+		info.setQueueName(info.getAppId());
 			
-		hostname = NetUtils.getHostname();
+		
 		conf = new YarnConfiguration();
 
 		FileSystem.get(conf);
 
 		LOG.info("Start using kafka");
 
-		appId = args[0];
-		inputQueueName = appId + MOHA_Properties.inputQueue;
-		// outputQueue = queueName + MOHA_Properties.outputQueue;
-		outputQueueName = "test";// just for testing
-		containerId = args[1];
-		id = args[2];
-
-		mohaStatistic = new MOHA_Queue(MOHA_Properties.mohaStatistic);
-		mohaStatistic.register();
 		
-		outQueue = new MOHA_Queue(outputQueueName);
-		outQueue.register();
-		LOG.info(outQueue.push("Start MOHA_TaskExecutor constructor on " + id));
 
-		inQueue = new MOHA_Queue(inputQueueName);
+		debugLogger = new MOHA_Logger();
+		
+		LOG.info(debugLogger.info("Start MOHA_TaskExecutor constructor on " + info.getAppId()));
+
+		inQueue = new MOHA_Queue(info.getQueueName());
 		inQueue.subcribe();	
 		
 		
-		info.setAppId(appId);
-		info.setExecutorId(id);		
-		info.setContainerId(containerId);
-		info.setHostname(this.hostname);
+		
 		
 		
 		data = new MOHA_Database();
@@ -85,14 +66,15 @@ public class MOHA_TaskExecutor {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		LOG.info(outQueue.push("Executor is ending ..."));
+		LOG.info(debugLogger.info("Executor is ending ..."));
 	}
 
 	private void run() {
 		// TODO Auto-generated method stub
-		LOG.info(outQueue.push("Executor is running on " + this.hostname));
-		LOG.info(outQueue.push("Executor is running on " + id));
-		LOG.info(outQueue.push("Queue Name : " + inputQueueName));
+		LOG.info(debugLogger.info("Executor is running on " + info.getHostname()));
+		LOG.info(debugLogger.info("Executor is running on " + info.getAppId()));
+		LOG.info(debugLogger.info("Queue Name : " + info.getQueueName()));
+		
 		long startingTime = System.currentTimeMillis();
 		long expiredTime = System.currentTimeMillis() + 10000;
 		int numComand = 0;
@@ -152,7 +134,7 @@ public class MOHA_TaskExecutor {
 			//LOG.info("count = {}",records.count());
 			if ((records.count() > 0)&&((expiredTime - startingTime)<48000)){
 				//LOG.info("Before commit");
-				LOG.info(outQueue.push("inQueue.commitSync()"));
+				LOG.info(debugLogger.info("inQueue.commitSync()"));
 				inQueue.commitSync();
 				//LOG.info("After commit");
 				
@@ -167,7 +149,7 @@ public class MOHA_TaskExecutor {
 				}*/
 				expiredTime = System.currentTimeMillis() + 2000;
 			}else if ((retries>0)&&found){
-				LOG.info(outQueue.push("Executor " + id + " : Re-poll messages"));
+				LOG.info(debugLogger.info("Executor " + info.getAppId() + " : Re-poll messages"));
 				//inQueue.subcribe();
 				/*try {
 					Thread.sleep(5000);
@@ -183,14 +165,14 @@ public class MOHA_TaskExecutor {
 			}
 
 		}
-		LOG.info(outQueue.push("TaskExecutor (" + id +")----------- There are  " + numComand + " (commands) have been executed"+ "  SleepTime: " + pollingTime));
+		LOG.info(debugLogger.info("TaskExecutor (" + info.getAppId() +")----------- There are  " + numComand + " (commands) have been executed"+ "  SleepTime: " + pollingTime));
 		long executingTime = info.getEndingTime() - info.getFirstMessageTime();
 		info.setRunningTime(executingTime);
 		info.setNumExecutedTasks(numComand);
 		info.setPollingTime(pollingTime);		
 		info.setEndingTime(System.currentTimeMillis());
 		data.executorInsert(info);
-		mohaStatistic.push(id + " " + numComand + " " + executingTime);
+		
 		inQueue.close();
 	}
 

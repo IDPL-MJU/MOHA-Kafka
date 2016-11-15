@@ -19,11 +19,11 @@ public class MOHA_KafkaBrokerInfo {
 		this.kafkaLibsDir = "kafkaLibs/" + kafkaLibVersion;
 	}
 
-	public String getAppId() {
+	public String getZookeeperDir() {
 		return appId;
 	}
 
-	public void setAppId(String appId) {
+	public void setZookeeperDir(String appId) {
 		this.appId = appId;
 	}
 

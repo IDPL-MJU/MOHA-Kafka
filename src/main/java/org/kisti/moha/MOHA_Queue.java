@@ -38,7 +38,7 @@ public class MOHA_Queue {
 		zkClient = ZkUtils$.MODULE$.createZkClient(zookeeperConnect, sessionTimeout, connectionTimeout);
 		zkConnection = new ZkConnection(zookeeperConnect, sessionTimeout);
 		zkUtils = new ZkUtils(zkClient, zkConnection, false);
-		AdminUtils.createTopic(zkUtils, queueName, numPartitions, numReplicationFactor, new Properties());
+		AdminUtils.createTopic(zkUtils, queueName, numPartitions, numReplicationFactor, new Properties(), null);
 		return true;
 
 	}

@@ -55,9 +55,9 @@ public class MOHA_KafkaClient {
 	private String queue;
 	private int managerMemory;
 	private String jarPath;
-	private int executorMemory;
-	private int numExecutors;
-	private String jdlPath;
+	private int brokerMem;
+	private int numBrokers;
+	private String kafkaLibsPath;
 	private long startingTime;
 
 	
@@ -87,7 +87,7 @@ public class MOHA_KafkaClient {
 			result = client.init(args);
 			
 			if(!result) {
-				LOG.info("Finishing the MOHA execution without YARN submission ...");
+				LOG.info("Finishing the Kafka Cluster without YARN submission ...");
 				return;
 			}
 			
@@ -166,15 +166,15 @@ public class MOHA_KafkaClient {
 		queue = inputParser.getOptionValue("queue", "default");
 		managerMemory = Integer.parseInt(inputParser.getOptionValue("manager_memory", "1024"));
 		jarPath = inputParser.getOptionValue("jar", "MOHA.jar");
-		executorMemory = Integer.parseInt(inputParser.getOptionValue("executor_memory", "1024"));
-		numExecutors = Integer.parseInt(inputParser.getOptionValue("num_executors", "1"));
+		brokerMem = Integer.parseInt(inputParser.getOptionValue("executor_memory", "1024"));
+		numBrokers = Integer.parseInt(inputParser.getOptionValue("num_executors", "1"));
 		
 		//[UPDATE] The Job Description File is necessary to execute MOHA tasks
 		if(!inputParser.hasOption("JDL")) {
 			LOG.error("The Job Description File should be provided !");
 			return false;
 		}
-		jdlPath = inputParser.getOptionValue("JDL");
+		kafkaLibsPath = inputParser.getOptionValue("JDL");
 
 		//[UPDATE] change the exception handling logic to avoid unnecessary exception throwing
 		if (priority < 0) {
@@ -193,14 +193,14 @@ public class MOHA_KafkaClient {
 		}
 		
 		//if (executorMemory < 32) {
-		if (executorMemory <= 0) {
+		if (brokerMem <= 0) {
 			LOG.error("Invalid value is specified for the amount of memory of the MOHA TaskExecutor");
 			return false;
 			//throw new IllegalArgumentException(
 			//		"Invalid value specified for amount of memory in MB to be requested to run the MOHA TaskExecutor");
 		}
 		
-		if (numExecutors < 1) {
+		if (numBrokers < 1) {
 			LOG.error("Invalid value is specified for the number of MOHA TaskExecutors");
 			return false;
 			//throw new IllegalArgumentException(
@@ -208,8 +208,8 @@ public class MOHA_KafkaClient {
 		}
 		
 		LOG.info("App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, "
-				+ "num ececutors = {}, jdl path = {}", appName, priority, queue, managerMemory, jarPath, executorMemory, 
-				numExecutors, jdlPath);
+				+ "num ececutors = {}, jdl path = {}", appName, priority, queue, managerMemory, jarPath, brokerMem, 
+				numBrokers, kafkaLibsPath);
 
 		return true;
 	}//The end of init function
@@ -263,7 +263,7 @@ public class MOHA_KafkaClient {
 		localResources.put("app.jar", jarResource);
 		LOG.info("Jar resource = {}", jarResource.toString());
 
-		Path jdlsrc = new Path(this.jdlPath);
+		Path jdlsrc = new Path(this.kafkaLibsPath);
 		String pathSuffixJdl = appName + "/" + appId.getId() + "/" + MOHA_Properties.kafkaLibs;
 		Path destKafka = new Path(fs.getHomeDirectory(), pathSuffixJdl);
 		fs.copyFromLocalFile(false, true, jdlsrc, destKafka);
@@ -332,8 +332,8 @@ public class MOHA_KafkaClient {
 
 		vargs.add(MOHA_KafkaManager.class.getName());
 		vargs.add(appId.toString());
-		vargs.add(String.valueOf(executorMemory));
-		vargs.add(String.valueOf(numExecutors));
+		vargs.add(String.valueOf(brokerMem));
+		vargs.add(String.valueOf(numBrokers));
 		vargs.add(MOHA_Properties.kafkaLibs);
 		vargs.add(String.valueOf(startingTime));
 		vargs.add("1><LOG_DIR>/MOHA_KafkaManager.stdout");

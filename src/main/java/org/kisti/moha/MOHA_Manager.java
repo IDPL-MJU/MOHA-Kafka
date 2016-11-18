@@ -134,6 +134,8 @@ public class MOHA_Manager {
 		appInfo.setNumPartitions(appInfo.getNumExecutors());
 		appInfo.setJdlPath(args[3]);
 		appInfo.setStartingTime(Long.parseLong(args[4]));
+		appInfo.setKakfaClusterId(args[5]);
+		
 		LOG.info("queue name = {}, executor memory = {}, num executors = {}, jdlPath = {}", appInfo.getAppId(),
 				appInfo.getExecutorMemory(), appInfo.getNumExecutors(), appInfo.getJdlPath());
 
@@ -145,15 +147,17 @@ public class MOHA_Manager {
 		LOG.info("Host idAdress = {}", ipAddress);
 		
 		debugLogger = new MOHA_Logger();
-		
+		debugLogger.info("init queue");
 		initQueue();
 		
 	}
 	private void initQueue(){
 		long startManager = System.currentTimeMillis();
-		queue = new MOHA_Queue(appInfo.getQueueName());
-		queue.create(appInfo.getNumPartitions(), 1);
-		queue.register();
+		
+		queue = new MOHA_Queue(appInfo.getKakfaClusterId(),appInfo.getQueueName());debugLogger.info("MOHA_Queue");
+		queue.create(appInfo.getNumPartitions(), 1);debugLogger.info("queue.create");
+		queue.register();debugLogger.info("queue.register");
+		
 		LOG.info(debugLogger.info("put messages to the queue ..."));
 		//put messages to the queue
 		FileReader fileReader;
@@ -165,13 +169,7 @@ public class MOHA_Manager {
 			buff.close();
 			
 			for (int i = 0; i < appInfo.getNumCommands(); i++) {
-				queue.push(i, appInfo.getCommand());
-				/*try {
-					Thread.sleep(1);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}*/
+				queue.push(Integer.toString(i), appInfo.getCommand());				
 			}
 			appInfo.setInitTime(System.currentTimeMillis() - startManager);
 		} catch (NumberFormatException | IOException e) {
@@ -243,18 +241,6 @@ public class MOHA_Manager {
 		
 	}
 
-	@SuppressWarnings("unused")
-	private String convertLongToDate(long dateMilisecs) {
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
-
-		GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("US/Central"));
-		calendar.setTimeInMillis(dateMilisecs);
-
-		String dateFormat = sdf.format(calendar.getTime());
-
-		return dateFormat;
-	}
-
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		LOG.info("Starting MOHA Manager ...");
@@ -293,6 +279,7 @@ public class MOHA_Manager {
 			vargs.add(appInfo.getAppId());
 			vargs.add(container.getId().toString());
 			vargs.add(String.valueOf(id));
+			vargs.add(appInfo.getKakfaClusterId());
 			vargs.add("1><LOG_DIR>/MOHA_TaskExecutor.stdout");
 			vargs.add("2><LOG_DIR>/MOHA_TaskExecutor.stderr");
 			StringBuilder command = new StringBuilder();

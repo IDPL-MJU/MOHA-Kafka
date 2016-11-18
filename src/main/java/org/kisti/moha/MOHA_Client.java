@@ -294,11 +294,17 @@ public class MOHA_Client {
 		
 		Properties prop = new Properties();
 		/* Loading MOHA.Conf File */
-		String kafka_libs ="default";
+		String kafka_libs = "/usr/hdp/kafka_2.11-0.9.0.0/libs/*";
+		String kafkaVersion = "kafka_2.11-0.10.1.0";
+		String kafkaClusterId = "KafkaCluster";
 		try {
 			prop.load(new FileInputStream("conf/MOHA.conf"));
 			kafka_libs = prop.getProperty("MOHA.dependencies.kafka.libs");
+			kafkaVersion = prop.getProperty("MOHA.dependencies.kafka.version");
+			kafkaClusterId = prop.getProperty("MOHA.kafka.cluster.id");
 			System.out.println(kafka_libs);
+			System.out.println(kafkaVersion);
+			System.out.println(kafkaClusterId);
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -329,6 +335,7 @@ public class MOHA_Client {
 		vargs.add(String.valueOf(numExecutors));
 		vargs.add(MOHA_Properties.jdl);
 		vargs.add(String.valueOf(startingTime));
+		vargs.add(kafkaClusterId);
 		vargs.add("1><LOG_DIR>/MOHA_Manager.stdout");
 		vargs.add("2><LOG_DIR>/MOHA_Manager.stderr");
 		StringBuilder command = new StringBuilder();

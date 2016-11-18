@@ -2,6 +2,7 @@ package org.kisti.moha;
 
 public class MOHA_ExecutorInfo {
 	private String appId;
+	private String kafkaClusterId;
 	private String executorId;
 	private String containerId;
 	private long firstMessageTime;
@@ -81,5 +82,11 @@ public class MOHA_ExecutorInfo {
 	}
 	public void setQueueName(String queueName) {
 		this.queueName = queueName;
+	}
+	public String getKafkaClusterId() {
+		return kafkaClusterId;
+	}
+	public void setKafkaClusterId(String kafkaClusterId) {
+		this.kafkaClusterId = kafkaClusterId;
 	}
 }

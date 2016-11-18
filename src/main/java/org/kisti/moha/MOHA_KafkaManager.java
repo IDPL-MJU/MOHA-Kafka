@@ -115,30 +115,31 @@ public class MOHA_KafkaManager {
 	Vector<CharSequence> statistic = new Vector<>(30);
 
 	public MOHA_KafkaManager(String[] args) throws IOException {
-
+		debugLogger = new MOHA_Logger();
 		conf = new YarnConfiguration();
 		fileSystem = FileSystem.get(conf);
 		for (String str : args) {
 			LOG.info(str);
 		}
-		new MOHA_Database();
+		
 		kafkaInfo = new MOHA_KafkaInfo();
 		
-		kafkaInfo.setKafkaClusterId(args[0]);
+		kafkaInfo.setKafkaClusterName(args[0]);
 		kafkaInfo.setBrokerMem(Integer.parseInt(args[1]));
 		kafkaInfo.setNumBrokers(Integer.parseInt(args[2]));
 		kafkaInfo.setNumPartitions(kafkaInfo.getNumBrokers());
 		kafkaInfo.setLibsPath(args[3]);
 		kafkaInfo.setStartingTime(Long.parseLong(args[4]));
+		kafkaInfo.setKafkaClusterId(args[5]);
 		
-		LOG.info("queue name = {}, executor memory = {}, num executors = {}, jdlPath = {}", kafkaInfo.getKafkaClusterId(),
+		LOG.info("queue name = {}, executor memory = {}, num executors = {}, jdlPath = {}", kafkaInfo.getKafkaClusterName(),
 				kafkaInfo.getBrokerMem(), kafkaInfo.getNumBrokers(), kafkaInfo.getLibsPath());
 
 		
 		String ipAddress = InetAddress.getLocalHost().getHostAddress();
 		LOG.info("Host idAdress = {}", ipAddress);
 
-		debugLogger = new MOHA_Logger();		
+				
 
 
 	}
@@ -201,6 +202,11 @@ public class MOHA_KafkaManager {
 
 		kafkaInfo.setMakespan(System.currentTimeMillis() - kafkaInfo.getStartingTime());debugLogger.info("setMakespan");
 		
+		MOHA_Zookeeper zk = new MOHA_Zookeeper(kafkaInfo.getKafkaClusterId());
+		zk.delete();
+		zk.close();
+		
+		debugLogger.info(kafkaInfo.getKafkaClusterId());
 		nmClient.stop();debugLogger.info("stop");
 		amRMClient.unregisterApplicationMaster(FinalApplicationStatus.SUCCEEDED, "Application complete!", null);debugLogger.info("unregisterApplicationMaster");
 		amRMClient.stop();debugLogger.info("stop");
@@ -208,16 +214,7 @@ public class MOHA_KafkaManager {
 
 	}
 
-	public String convertLongToDate(long dateMilisecs) {
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
 
-		GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("US/Central"));
-		calendar.setTimeInMillis(dateMilisecs);
-
-		String dateFormat = sdf.format(calendar.getTime());
-
-		return dateFormat;
-	}
 
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
@@ -254,10 +251,10 @@ public class MOHA_KafkaManager {
 			Vector<CharSequence> vargs = new Vector<>(30);
 			vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
 			vargs.add(MOHA_KafkaBrokerLauncher.class.getName());
-			vargs.add("KafkaCluster");
+			vargs.add(kafkaInfo.getKafkaClusterId());
 			vargs.add(container.getId().toString());
 			vargs.add(String.valueOf(id));
-			vargs.add("kafka_2.11-0.10.1.0");
+			vargs.add(kafkaInfo.getLibsPath().replace(".tgz", ""));
 			vargs.add("1><LOG_DIR>/MOHA_KafkaBrokerLauncher.stdout");
 			vargs.add("2><LOG_DIR>/MOHA_KafkaBrokerLauncher.stderr");
 			StringBuilder command = new StringBuilder();

@@ -39,15 +39,15 @@ public class MOHA_KafkaBrokerLauncher {
 		LOG.info(debugLogger.info("Init Kafka broker manager =" + args.toString()));
 
 		kbInfo = new MOHA_KafkaBrokerInfo();
-		kbInfo.setZookeeperDir(args[0]);
+		kbInfo.setClusterId(args[0]);
 		kbInfo.setContainerId(args[1]);
 		kbInfo.setBrokerId(args[2]);
 		kbInfo.setKafkaLibsDir(args[3]);
-		kbInfo.setZookeeperConnect("localhost:2181/" + kbInfo.getZookeeperDir());
+		kbInfo.setZookeeperConnect("localhost:2181/" + kbInfo.getClusterId());
 		
-		zk = new MOHA_Zookeeper(kbInfo.getZookeeperDir());
+		zk = new MOHA_Zookeeper(kbInfo.getClusterId());
 
-		LOG.info(debugLogger.info("getAppId =" + kbInfo.getZookeeperDir()));
+		LOG.info(debugLogger.info("getClusterId =" + kbInfo.getClusterId()));
 		LOG.info(debugLogger.info("getContainerId =" + kbInfo.getContainerId()));
 		LOG.info(debugLogger.info("getBrokerId =" + kbInfo.getBrokerId()));
 		LOG.info(debugLogger.info("getKafkaLibVersion =" + kbInfo.getKafkaLibsDir()));
@@ -72,20 +72,25 @@ public class MOHA_KafkaBrokerLauncher {
 		startThread.start();
 		debugLogger.info("startThread.start()");
 		try {
-			Thread.sleep(2000);
+			Thread.sleep(10000);
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+						
 		brokerIds = getKafkaBrokerIds(preIds);
+		while(!zk.exist()){
+			debugLogger.info(MOHA_Common.convertLongToDate(System.currentTimeMillis()) + "  Kafka broker crashed or haven't worked yet ");
+			Thread.sleep(1000);
+		}
 
 		 zk.setRequests(false);
-		
-		 while (!zk.checkRequests()){
-			LOG.info("Kafka server is running = {}", zk.getBootstrapServers()); //
-			debugLogger.info("Kafka brokers are running on " + zk.getBootstrapServers());
+		 debugLogger.info(MOHA_Common.convertLongToDate(System.currentTimeMillis()) + "  Kafka brokers are running on " + zk.getBootstrapServers());
+		 LOG.info("Kafka server is running = {}", zk.getBootstrapServers()); //
+		 while (!zk.checkRequests()){		
+			
 			try {
-				Thread.sleep(5000);
+				Thread.sleep(1000);
 				//setRequests(true);
 			} catch (InterruptedException e) { // TODO
 				// Auto-generated catch block e.printStackTrace();
@@ -94,7 +99,7 @@ public class MOHA_KafkaBrokerLauncher {
 		
 		
 		kafkaServerStop(brokerIds);
-
+		zk.close();
 		LOG.info(debugLogger.info("Kafka broker[" + brokerIds + "] is stopped"));
 		return;
 	};
@@ -301,7 +306,7 @@ public class MOHA_KafkaBrokerLauncher {
 
 				if (line.contains("zookeeper.connect=localhost:2181")) {
 					line = line.replace("zookeeper.connect=localhost:2181",
-							"zookeeper.connect=localhost:2181/" + kbInfo.getZookeeperDir());
+							"zookeeper.connect=localhost:2181/" + kbInfo.getClusterId());
 					LOG.info("Setting Zookeeper directory = {}", line);
 					debugLogger.info(line);
 				}

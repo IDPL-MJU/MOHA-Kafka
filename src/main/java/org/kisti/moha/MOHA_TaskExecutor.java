@@ -1,16 +1,23 @@
 package org.kisti.moha;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MOHA_TaskExecutor {
 	private static final Logger LOG = LoggerFactory.getLogger(MOHA_TaskExecutor.class);
+	private static final int SESSION_MAXTIME = 30*60*1000;
+	private static final int EXTENDED_SESSION_TIME = 2*1000;
 	
 	private YarnConfiguration conf;
 
@@ -26,30 +33,24 @@ public class MOHA_TaskExecutor {
 		info = new MOHA_ExecutorInfo();
 		info.setAppId(args[0]);
 		info.setContainerId(args[1]);
-		info.setExecutorId(args[2]);			
+		info.setExecutorId(args[2]);	
+		info.setKafkaClusterId(args[3]);
 		info.setHostname(NetUtils.getHostname());
 		info.setLaunchedTime(System.currentTimeMillis());
-		info.setQueueName(info.getAppId());
-			
+		info.setQueueName(info.getAppId());			
 		
 		conf = new YarnConfiguration();
 
 		FileSystem.get(conf);
 
-		LOG.info("Start using kafka");
-
-		
+		LOG.info("Start using kafka");		
 
 		debugLogger = new MOHA_Logger();
 		
 		LOG.info(debugLogger.info("Start MOHA_TaskExecutor constructor on " + info.getAppId()));
 
-		inQueue = new MOHA_Queue(info.getQueueName());
-		inQueue.subcribe();	
-		
-		
-		
-		
+		inQueue = new MOHA_Queue(info.getKafkaClusterId(),info.getQueueName());
+		inQueue.subcribe();			
 		
 		data = new MOHA_Database();
 	}
@@ -66,7 +67,7 @@ public class MOHA_TaskExecutor {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		LOG.info(debugLogger.info("Executor is ending ..."));
+		
 	}
 
 	private void run() {
@@ -76,21 +77,25 @@ public class MOHA_TaskExecutor {
 		LOG.info(debugLogger.info("Queue Name : " + info.getQueueName()));
 		
 		long startingTime = System.currentTimeMillis();
-		long expiredTime = System.currentTimeMillis() + 10000;
+		long expiredTime = System.currentTimeMillis() + 5*EXTENDED_SESSION_TIME;
 		int numComand = 0;
 		int pollingTime = 0;
-		int retries = 2;
-		boolean found = false; 
+		int retries = 3;
+		boolean found = false; //get first message from the queue
 		info.setEndingTime(startingTime);
+		
 		while (System.currentTimeMillis() < expiredTime) {
-			long fistMes = System.currentTimeMillis();
-			ConsumerRecords<Integer, String> records = inQueue.poll(1000);
+			
+			ConsumerRecords<String, String> records = inQueue.poll(1000);
 			if(records.count() > 0){
-				info.setFirstMessageTime(fistMes);
-				found = true;			
+				info.setFirstMessageTime(System.currentTimeMillis());
+				found = true;		
 			}
+			
 
-/*			for (ConsumerRecord<Integer, String> record : records) {
+
+			for (ConsumerRecord<String, String> record : records) {
+				debugLogger.info("TaskExecutor [" + info.getExecutorId() +"]: " +record.toString());
 
 				List<String> command = new ArrayList<String>();
 				
@@ -100,14 +105,14 @@ public class MOHA_TaskExecutor {
 				}
 				ProcessBuilder builder = new ProcessBuilder(command);
 				Process p;
-				//String line;
+				String line;
 				try {
 					p = builder.start();
 					p.waitFor();
 					BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 					while ((line = br.readLine()) != null) {
-						outQueue.push(
-								"Task Executor (" + id + ") " + "from partition  " + record.partition() + " : " + line);
+						debugLogger.info(
+								"Task Executor (" + info.getExecutorId() + ") " + "from partition  " + record.partition() + " : " + line);
 					}
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
@@ -115,57 +120,35 @@ public class MOHA_TaskExecutor {
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
-				}
-				//numComand++;			
-				//info.setFirstMessageTime(System.currentTimeMillis());
-			}*/
-			/*for (ConsumerRecord<Integer, String> record : records) {
-				//LOG.info("command = {}",record.value());
-				try {
-					Thread.sleep(1);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}*/
-			if(retries < 3){
-				//outQueue.push("count = "+records.count());
-			}
-			//LOG.info("count = {}",records.count());
-			if ((records.count() > 0)&&((expiredTime - startingTime)<48000)){
-				//LOG.info("Before commit");
-				LOG.info(debugLogger.info("inQueue.commitSync()"));
-				inQueue.commitSync();
-				//LOG.info("After commit");
+				}					
 				
+			}
+
+			
+			if ((records.count() > 0)&&((expiredTime - startingTime)<SESSION_MAXTIME)){
+				
+				LOG.info(debugLogger.info("inQueue.commitSync()"));
+				inQueue.commitSync();				
 				pollingTime ++;
 				numComand += records.count();		
-				info.setEndingTime(System.currentTimeMillis());
-				/*try {
-					Thread.sleep(1);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}*/
-				expiredTime = System.currentTimeMillis() + 2000;
+				info.setEndingTime(System.currentTimeMillis());				
+				expiredTime = System.currentTimeMillis() + EXTENDED_SESSION_TIME;
 			}else if ((retries>0)&&found){
-				LOG.info(debugLogger.info("Executor " + info.getAppId() + " : Re-poll messages"));
+				LOG.info(debugLogger.info("Executor [" + info.getExecutorId() + "[ : Re-poll messages"));
 				//inQueue.subcribe();
-				/*try {
+				try {
 					Thread.sleep(5000);
 					inQueue.commitSync();
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
-				}
-				
-				retries --;
-				found = false;
-				expiredTime = System.currentTimeMillis() + 2000;*/
+				}				
+				retries --;				
+				expiredTime = System.currentTimeMillis() + EXTENDED_SESSION_TIME;
 			}
 
 		}
-		LOG.info(debugLogger.info("TaskExecutor (" + info.getAppId() +")----------- There are  " + numComand + " (commands) have been executed"+ "  SleepTime: " + pollingTime));
+		LOG.info(debugLogger.info("TaskExecutor [" + info.getExecutorId() +"] : There are  " + numComand + " (commands) have been executed"+ "  SleepTime: " + pollingTime));
 		long executingTime = info.getEndingTime() - info.getFirstMessageTime();
 		info.setRunningTime(executingTime);
 		info.setNumExecutedTasks(numComand);
@@ -174,6 +157,7 @@ public class MOHA_TaskExecutor {
 		data.executorInsert(info);
 		
 		inQueue.close();
+		LOG.info(debugLogger.info("Executor ["+info.getExecutorId()+"] is ending ..."));
 	}
 
 }

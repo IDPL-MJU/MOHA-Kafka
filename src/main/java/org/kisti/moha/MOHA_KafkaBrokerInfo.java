@@ -2,7 +2,7 @@ package org.kisti.moha;
 
 public class MOHA_KafkaBrokerInfo {
 	private String kafkaLibsDir;
-	private String appId;
+	private String clusterId;
 	private String brokerId;
 	private String containerId;	
 	private String zookeeperConnect;
@@ -19,12 +19,12 @@ public class MOHA_KafkaBrokerInfo {
 		this.kafkaLibsDir = "kafkaLibs/" + kafkaLibVersion;
 	}
 
-	public String getZookeeperDir() {
-		return appId;
+	public String getClusterId() {
+		return clusterId;
 	}
 
-	public void setZookeeperDir(String appId) {
-		this.appId = appId;
+	public void setClusterId(String clusterId) {
+		this.clusterId = clusterId;
 	}
 
 	

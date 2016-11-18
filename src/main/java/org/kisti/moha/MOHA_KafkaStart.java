@@ -43,8 +43,8 @@ import org.apache.hadoop.yarn.util.Records;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class MOHA_KafkaClient {
-	private static final Logger LOG = LoggerFactory.getLogger(MOHA_KafkaClient.class);
+public class MOHA_KafkaStart {
+	private static final Logger LOG = LoggerFactory.getLogger(MOHA_KafkaStart.class);
 	private YarnConfiguration conf;
 	private YarnClient yarnClient;
 	private ApplicationId appId;
@@ -77,13 +77,13 @@ public class MOHA_KafkaClient {
 			e.printStackTrace();
 		}
 		*/
-		MOHA_KafkaClient client;
+		MOHA_KafkaStart client;
 		boolean result = false;
 		
 		LOG.info("Initializing the MOHA_KafkaClient");
 
 		try {
-			client = new MOHA_KafkaClient(args);
+			client = new MOHA_KafkaStart(args);
 			result = client.init(args);
 			
 			if(!result) {
@@ -103,23 +103,9 @@ public class MOHA_KafkaClient {
 	}//The end of main function
 
 	
-	public MOHA_KafkaClient(String[] args) throws IOException {
+	public MOHA_KafkaStart(String[] args) throws IOException {
 		//[UPDATE] Some logics are shifted into the main function
-		/*
-		try {
-			LOG.info("Start init MOHA_KafkaClient");
-			startingTime = System.currentTimeMillis();
-			init(args);
-			LOG.info("Successfully init");
-			conf = new YarnConfiguration();
-			yarnClient = YarnClient.createYarnClient();
-			yarnClient.init(conf);
-			fs = FileSystem.get(conf);
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		*/
+
 		conf = new YarnConfiguration();
 		yarnClient = YarnClient.createYarnClient();
 		yarnClient.init(conf);
@@ -146,10 +132,10 @@ public class MOHA_KafkaClient {
 				"Amount of memory in MB to be requested to run the MOHA Manager (Default: 1024)");
 		option.addOption("jar", true,
 				"JAR file containing the MOHA Manager and Task Executor (Default: MOHA.jar)");
-		option.addOption("executor_memory", true,
+		option.addOption("broker_memory", true,
 				"Amount of memory in MB to be requested to run the MOHA TaskExecutor (Default: 1024)");
-		option.addOption("num_executors", true, "Number of MOHA Task Executors (Default: 1)");
-		option.addOption("JDL", true, "Job Description Language file that contains the MOHA job specification (must specified)");		
+		option.addOption("num_brokers", true, "Number of MOHA Task Executors (Default: 1)");
+		option.addOption("kafka_tgz", true, "Job Description Language file that contains the MOHA job specification (must specified)");		
 		option.addOption("help", false, "Print Usage of MOHA_KafkaClient"); //Add the help functionality in MOHA_KafkaClient
 
 		CommandLine inputParser = new GnuParser().parse(option, args);
@@ -166,15 +152,15 @@ public class MOHA_KafkaClient {
 		queue = inputParser.getOptionValue("queue", "default");
 		managerMemory = Integer.parseInt(inputParser.getOptionValue("manager_memory", "1024"));
 		jarPath = inputParser.getOptionValue("jar", "MOHA.jar");
-		brokerMem = Integer.parseInt(inputParser.getOptionValue("executor_memory", "1024"));
-		numBrokers = Integer.parseInt(inputParser.getOptionValue("num_executors", "1"));
+		brokerMem = Integer.parseInt(inputParser.getOptionValue("broker_memory", "1024"));
+		numBrokers = Integer.parseInt(inputParser.getOptionValue("num_brokers", "1"));
 		
 		//[UPDATE] The Job Description File is necessary to execute MOHA tasks
-		if(!inputParser.hasOption("JDL")) {
+		if(!inputParser.hasOption("kafka_tgz")) {
 			LOG.error("The Job Description File should be provided !");
 			return false;
 		}
-		kafkaLibsPath = inputParser.getOptionValue("JDL");
+		kafkaLibsPath = inputParser.getOptionValue("kafka_tgz");
 
 		//[UPDATE] change the exception handling logic to avoid unnecessary exception throwing
 		if (priority < 0) {
@@ -208,7 +194,7 @@ public class MOHA_KafkaClient {
 		}
 		
 		LOG.info("App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, "
-				+ "num ececutors = {}, jdl path = {}", appName, priority, queue, managerMemory, jarPath, brokerMem, 
+				+ "num ececutors = {}, kafka_tgz path = {}", appName, priority, queue, managerMemory, jarPath, brokerMem, 
 				numBrokers, kafkaLibsPath);
 
 		return true;
@@ -221,6 +207,28 @@ public class MOHA_KafkaClient {
 	
 
 	public boolean run() throws YarnException, IOException {
+		
+		Properties prop = new Properties();
+		/* Loading MOHA.Conf File */
+		String kafka_libs = "/usr/hdp/kafka_2.11-0.9.0.0/libs/*";
+		String kafkaVersion = "kafka_2.11-0.10.1.0";
+		String kafkaClusterId = "KafkaCluster";
+		try {
+			prop.load(new FileInputStream("conf/MOHA.conf"));
+			kafka_libs = prop.getProperty("MOHA.dependencies.kafka.libs");
+			kafkaVersion = prop.getProperty("MOHA.dependencies.kafka.version");
+			kafkaClusterId = prop.getProperty("MOHA.kafka.cluster.id");
+			System.out.println(kafka_libs);
+			System.out.println(kafkaVersion);
+			System.out.println(kafkaClusterId);
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 		LOG.info("yarnClient = {}", yarnClient.toString());
 		yarnClient.start();
 		YarnClientApplication yarnClientApplication = yarnClient.createApplication();
@@ -263,24 +271,14 @@ public class MOHA_KafkaClient {
 		localResources.put("app.jar", jarResource);
 		LOG.info("Jar resource = {}", jarResource.toString());
 
-		Path jdlsrc = new Path(this.kafkaLibsPath);
-		String pathSuffixJdl = appName + "/" + appId.getId() + "/" + MOHA_Properties.kafkaLibs;
-		Path destKafka = new Path(fs.getHomeDirectory(), pathSuffixJdl);
-		fs.copyFromLocalFile(false, true, jdlsrc, destKafka);
+		Path kafkaSrc = new Path(this.kafkaLibsPath);
+		String pathSuffixkafka_tgz = appName + "/" + appId.getId() + "/" + kafkaVersion + ".tgz";
+		Path kafkaDest = new Path(fs.getHomeDirectory(), pathSuffixkafka_tgz);
+		fs.copyFromLocalFile(false, true, kafkaSrc, kafkaDest);
 		
 		
-		FileStatus kafkaStatus = fs.getFileLinkStatus(destKafka);
-		//set local resource
-		/*LocalResource kafkaResource = Records.newRecord(LocalResource.class);
-		kafkaResource.setResource(ConverterUtils.getYarnUrlFromPath(destKafka));
-		kafkaResource.setSize(kafkaStatus.getLen());
-		kafkaResource.setTimestamp(kafkaStatus.getModificationTime());
-		kafkaResource.setType(LocalResourceType.FILE);
-		kafkaResource.setVisibility(LocalResourceVisibility.APPLICATION);
-
-		localResources.put(MOHA_Properties.kafkaLibs, kafkaResource);*/
-		//LOG.info("Jdl resource = {}", kafkaResource.toString());
-
+		FileStatus kafkaStatus = fs.getFileLinkStatus(kafkaDest);
+		
 		Map<String, String> env = new HashMap<>();
 		String appJarDest = dest.toUri().toString();
 		
@@ -288,7 +286,7 @@ public class MOHA_KafkaClient {
 		env.put("AMJARTIMESTAMP", Long.toString(destStatus.getModificationTime()));
 		env.put("AMJARLEN", Long.toString(destStatus.getLen()));
 		
-		env.put("KAFKALIBS", destKafka.toUri().toString());
+		env.put("KAFKALIBS", kafkaDest.toUri().toString());
 		env.put("KAFKALIBSTIMESTAMP", Long.toString(kafkaStatus.getModificationTime()));
 		env.put("KAFKALIBSLEN", Long.toString(kafkaStatus.getLen()));
 
@@ -299,20 +297,7 @@ public class MOHA_KafkaClient {
 			classPathEnv.append(c.trim());
 		}
 		
-		Properties prop = new Properties();
-		/* Loading MOHA.Conf File */
-		String kafka_libs ="default";
-		try {
-			prop.load(new FileInputStream("conf/MOHA.conf"));
-			kafka_libs = prop.getProperty("MOHA.dependencies.kafka.libs");
-			System.out.println(kafka_libs);
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		
 		classPathEnv.append(File.pathSeparatorChar);
 		classPathEnv.append(kafka_libs);
 		classPathEnv.append(File.pathSeparatorChar);
@@ -334,8 +319,9 @@ public class MOHA_KafkaClient {
 		vargs.add(appId.toString());
 		vargs.add(String.valueOf(brokerMem));
 		vargs.add(String.valueOf(numBrokers));
-		vargs.add(MOHA_Properties.kafkaLibs);
+		vargs.add(kafkaVersion + ".tgz");
 		vargs.add(String.valueOf(startingTime));
+		vargs.add(kafkaClusterId);
 		vargs.add("1><LOG_DIR>/MOHA_KafkaManager.stdout");
 		vargs.add("2><LOG_DIR>/MOHA_KafkaManager.stderr");
 		StringBuilder command = new StringBuilder();

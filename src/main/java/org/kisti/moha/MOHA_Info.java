@@ -4,6 +4,7 @@ import org.mortbay.log.Log;
 
 public class MOHA_Info {
 	private  String appId;
+	private String kakfaClusterId;
 	private String queueName;
 	private  int executorMemory;
 	private  int numExecutors;
@@ -88,6 +89,12 @@ public class MOHA_Info {
 	}
 	public void setQueueName(String queueName) {
 		this.queueName = queueName;
+	}
+	public String getKakfaClusterId() {
+		return kakfaClusterId;
+	}
+	public void setKakfaClusterId(String kakfaClusterId) {
+		this.kakfaClusterId = kakfaClusterId;
 	}
 	
 }

@@ -64,7 +64,7 @@ public class MOHA_Database {
 			String sql = "insert into " + MOHA_Properties.ExecutorDb
 					+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
 					+ eInfo.getAppId() + "\"" + ",\"" + eInfo.getExecutorId() + "\"" + ",\"" + eInfo.getContainerId()
-					+ "\"" + ",\"" + eInfo.getHostname() + "\"" + ",\"" + convertLongToDate(eInfo.getLaunchedTime())
+					+ "\"" + ",\"" + eInfo.getHostname() + "\"" + ",\"" + MOHA_Common.convertLongToDate(eInfo.getLaunchedTime())
 					+ "\"" + "," + eInfo.getNumExecutedTasks() + "," + eInfo.getRunningTime() + ","
 					+ eInfo.getLaunchedTime() + "," + eInfo.getFirstMessageTime() + "," + eInfo.getPollingTime() + ","
 					+ eInfo.getEndingTime() + ")";
@@ -82,7 +82,7 @@ public class MOHA_Database {
 			String sql = "insert into " + MOHA_Properties.AppDb
 					+ "(appId, executorMemory, numExecutors, numPartitions, startingTime, initTime,makespan, numCommands, command) values (\""
 					+ appInfo.getAppId() + "\"," + appInfo.getExecutorMemory() + "," + appInfo.getNumExecutors() + ","
-					+ appInfo.getNumPartitions() + "," + "\" " + convertLongToDate(appInfo.getStartingTime()) + "\","
+					+ appInfo.getNumPartitions() + "," + "\" " + MOHA_Common.convertLongToDate(appInfo.getStartingTime()) + "\","
 					+ appInfo.getInitTime() + "," + appInfo.getMakespan() + "," + appInfo.getNumCommands() + ",\""
 					+ appInfo.getCommand() + "\")";
 
@@ -95,37 +95,7 @@ public class MOHA_Database {
 		}
 	}
 
-	private String convertLongToDate(long dateMilisecs) {
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
 
-		GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("US/Central"));
-		calendar.setTimeInMillis(dateMilisecs);
-
-		String dateFormat = sdf.format(calendar.getTime());
-
-		return dateFormat;
-	}
-
-	@SuppressWarnings("unused")
-	private long convertDateToLong(String dateTime) {
-		long timeMillis = 0;
-
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
-		if (dateTime != null) {
-			try {
-				Date timeDate = sdf.parse(dateTime);
-				if (timeDate != null) {
-					timeMillis = timeDate.getTime();
-				}
-
-			} catch (ParseException e) {
-				// TODO Auto-generated catch block
-				System.out.println("Date time: " + dateTime);
-				e.printStackTrace();
-			}
-		}
-		return timeMillis;
-	}
 
 	public static void main(String[] args) {
 		MOHA_Info appInfo = new MOHA_Info();

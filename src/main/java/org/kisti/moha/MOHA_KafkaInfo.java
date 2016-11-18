@@ -3,7 +3,8 @@ package org.kisti.moha;
 import org.mortbay.log.Log;
 
 public class MOHA_KafkaInfo {
-	private  String clusterId;
+	private  String clusterName;
+	private String kafkaClusterId;
 	private  int brokerMem;
 	private  int numBrokers;
 	private  String libsPath;
@@ -27,12 +28,12 @@ public class MOHA_KafkaInfo {
 	public void setInitTime(long l) {
 		this.initTime = l;
 	}
-	public String getKafkaClusterId() {
-		return clusterId;
+	public String getKafkaClusterName() {
+		return clusterName;
 	}
-	public void setKafkaClusterId(String clusterId) {
-		Log.info("appId = {}", clusterId);
-		this.clusterId = clusterId;
+	public void setKafkaClusterName(String clusterName) {
+		Log.info("appId = {}", clusterName);
+		this.clusterName = clusterName;
 	}
 	public int getBrokerMem() {
 		return brokerMem;
@@ -81,6 +82,12 @@ public class MOHA_KafkaInfo {
 	}
 	public void setCommand(String command) {
 		this.command = command;
+	}
+	public String getKafkaClusterId() {
+		return kafkaClusterId;
+	}
+	public void setKafkaClusterId(String kafkaClusterId) {
+		this.kafkaClusterId = kafkaClusterId;
 	}
 	
 }

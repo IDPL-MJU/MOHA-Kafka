@@ -154,7 +154,7 @@ public class MOHA_TaskExecutor {
 		info.setNumExecutedTasks(numComand);
 		info.setPollingTime(pollingTime);		
 		info.setEndingTime(System.currentTimeMillis());
-		data.executorInsert(info);
+		data.insertExecutorInfoToDatabase(info);
 		
 		inQueue.close();
 		LOG.info(debugLogger.info("Executor ["+info.getExecutorId()+"] is ending ..."));

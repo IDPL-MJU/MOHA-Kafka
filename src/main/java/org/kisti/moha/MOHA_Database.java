@@ -59,7 +59,7 @@ public class MOHA_Database {
 
 	}
 
-	public void executorInsert(MOHA_ExecutorInfo eInfo) {
+	public void insertExecutorInfoToDatabase(MOHA_ExecutorInfo eInfo) {
 		if (MOHA_Properties.DEBUG_MYSQL) {
 			String sql = "insert into " + MOHA_Properties.ExecutorDb
 					+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
@@ -76,7 +76,7 @@ public class MOHA_Database {
 
 	}
 
-	public void appInfoInsert(MOHA_Info appInfo) {
+	public void insertAppInfoToDababase(MOHA_Info appInfo) {
 
 		if (MOHA_Properties.DEBUG_MYSQL) {
 			String sql = "insert into " + MOHA_Properties.AppDb
@@ -101,7 +101,7 @@ public class MOHA_Database {
 		MOHA_Info appInfo = new MOHA_Info();
 		MOHA_ExecutorInfo info = new MOHA_ExecutorInfo();
 		MOHA_Database data = new MOHA_Database();
-		data.appInfoInsert(appInfo);
-		data.executorInsert(info);
+		data.insertAppInfoToDababase(appInfo);
+		data.insertExecutorInfoToDatabase(info);
 	}
 }

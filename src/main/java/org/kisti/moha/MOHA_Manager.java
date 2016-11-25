@@ -233,7 +233,7 @@ public class MOHA_Manager {
 		LOG.info(debugLogger.info("Containers have all completed, so shutting down NMClient and AMRMClient ..."));
 
 		appInfo.setMakespan(System.currentTimeMillis() - appInfo.getStartingTime());
-		db.appInfoInsert(appInfo);
+		db.insertAppInfoToDababase(appInfo);
 		nmClient.stop();
 		amRMClient.unregisterApplicationMaster(FinalApplicationStatus.SUCCEEDED, "Application complete!", null);
 		amRMClient.stop();

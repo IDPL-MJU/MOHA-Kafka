@@ -3,12 +3,10 @@ package org.kisti.moha;
 import org.mortbay.log.Log;
 
 public class MOHA_Info {
-	private  String appId;
-	private String kakfaClusterId;
+	private  String appId;	
 	private String queueName;
 	private  int executorMemory;
-	private  int numExecutors;
-	private  String jdlPath;
+	private  int numExecutors;	
 	private  int numPartitions;
 	private  long startingTime;
 	private long makespan;
@@ -16,7 +14,26 @@ public class MOHA_Info {
 	private  String command;
 	private long initTime;
 	private long allocationTime;
+	private MOHA_Configuration conf;
 	
+	
+	
+	public MOHA_Info() {
+		conf = new MOHA_Configuration();
+	}
+	@Override
+	public String toString() {
+		return "MOHA_Info [appId=" + appId + ", queueName=" + queueName + ", executorMemory=" + executorMemory
+				+ ", numExecutors=" + numExecutors + ", numPartitions=" + numPartitions + ", startingTime="
+				+ startingTime + ", makespan=" + makespan + ", numCommands=" + numCommands + ", command=" + command
+				+ ", initTime=" + initTime + ", allocationTime=" + allocationTime + ", conf=" + conf + "]";
+	}
+	public MOHA_Configuration getConf() {
+		return conf;
+	}
+	public void setConf(MOHA_Configuration conf) {
+		this.conf = conf;
+	}
 	public long getAllocationTime() {
 		return allocationTime;
 	}
@@ -48,12 +65,7 @@ public class MOHA_Info {
 	public void setNumExecutors(int numExecutors) {
 		this.numExecutors = numExecutors;
 	}
-	public String getJdlPath() {
-		return jdlPath;
-	}
-	public void setJdlPath(String jdlPath) {
-		this.jdlPath = jdlPath;
-	}
+
 	public int getNumPartitions() {
 		return numPartitions;
 	}
@@ -89,12 +101,5 @@ public class MOHA_Info {
 	}
 	public void setQueueName(String queueName) {
 		this.queueName = queueName;
-	}
-	public String getKakfaClusterId() {
-		return kakfaClusterId;
-	}
-	public void setKakfaClusterId(String kakfaClusterId) {
-		this.kakfaClusterId = kakfaClusterId;
-	}
-	
+	}	
 }

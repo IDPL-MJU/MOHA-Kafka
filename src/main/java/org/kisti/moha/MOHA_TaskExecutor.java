@@ -34,7 +34,14 @@ public class MOHA_TaskExecutor {
 		info.setAppId(args[0]);
 		info.setContainerId(args[1]);
 		info.setExecutorId(args[2]);	
-		info.setKafkaClusterId(args[3]);
+		
+		info.getConf().setKafkaVersion(args[3]);
+		info.getConf().setKafkaClusterId(args[4]);
+		info.getConf().setDebugQueueName(args[5]);
+		info.getConf().setEnableKafkaDebug(args[6]);
+		info.getConf().setEnableMysqlLog(args[7]);
+		
+		
 		info.setHostname(NetUtils.getHostname());
 		info.setLaunchedTime(System.currentTimeMillis());
 		info.setQueueName(info.getAppId());			
@@ -43,16 +50,18 @@ public class MOHA_TaskExecutor {
 
 		FileSystem.get(conf);
 
-		LOG.info("Start using kafka");		
+		LOG.info("Start using kafka");	
+		
 
-		debugLogger = new MOHA_Logger();
+		debugLogger = new MOHA_Logger(Boolean.parseBoolean(info.getConf().getEnableKafkaDebug()),
+				info.getConf().getDebugQueueName());
 		
 		LOG.info(debugLogger.info("Start MOHA_TaskExecutor constructor on " + info.getAppId()));
 
-		inQueue = new MOHA_Queue(info.getKafkaClusterId(),info.getQueueName());
+		inQueue = new MOHA_Queue(info.getConf().getKafkaClusterId(),info.getQueueName());
 		inQueue.subcribe();			
 		
-		data = new MOHA_Database();
+		data = new MOHA_Database(Boolean.parseBoolean(info.getConf().getEnableMysqlLog()));
 	}
 
 	public static void main(String[] args) {

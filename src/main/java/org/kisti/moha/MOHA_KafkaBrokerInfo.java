@@ -1,33 +1,45 @@
 package org.kisti.moha;
 
 public class MOHA_KafkaBrokerInfo {
-	private String kafkaLibsDir;
-	private String clusterId;
+	
+	
 	private String brokerId;
 	private String containerId;	
 	private String zookeeperConnect;
+	private String kafkaBinDir;
 	private int port;
-
 	private String hostname;
+	private MOHA_Configuration conf;
+	
+	public MOHA_KafkaBrokerInfo() {
+		conf = new MOHA_Configuration();
+	}
+
+	public MOHA_Configuration getConf() {
+		return conf;
+	}
+
+	public void setConf(MOHA_Configuration conf) {
+		this.conf = conf;
+	}
+
 	private long launchedTime;
 		
-	public String getKafkaLibsDir() {
-		return kafkaLibsDir;
+	public String getKafkaBinDir() {
+		return kafkaBinDir;
 	}
 
-	public void setKafkaLibsDir(String kafkaLibVersion) {
-		this.kafkaLibsDir = "kafkaLibs/" + kafkaLibVersion;
-	}
-
-	public String getClusterId() {
-		return clusterId;
-	}
-
-	public void setClusterId(String clusterId) {
-		this.clusterId = clusterId;
+	public void setKafkaBinDir(String kafkaLibVersion) {
+		this.kafkaBinDir = "kafkaLibs/" + kafkaLibVersion;
 	}
 
 	
+	@Override
+	public String toString() {
+		return "MOHA_KafkaBrokerInfo [brokerId=" + brokerId + ", containerId=" + containerId + ", zookeeperConnect="
+				+ zookeeperConnect + ", kafkaBinDir=" + kafkaBinDir + ", port=" + port + ", hostname=" + hostname
+				+ ", conf=" + conf + ", launchedTime=" + launchedTime + "]";
+	}
 
 	public String getContainerId() {
 		return containerId;

@@ -25,35 +25,35 @@ public class NMCallbackHandler implements NMClientAsync.CallbackHandler {
 
 	public NMCallbackHandler(MOHA_Manager applicationMaster) {
 		this.mohaManager = applicationMaster;
-		debugLogger = new MOHA_Logger();
-		
-		
+		debugLogger = new MOHA_Logger(Boolean.parseBoolean(mohaManager.getAppInfo().getConf().getEnableKafkaDebug()),
+				mohaManager.getAppInfo().getConf().getDebugQueueName());
+
 		LOG.info(debugLogger.info("nmClient.start(); ..."));
 	}
 
 	public void addContainer(ContainerId containerId, Container container) {
 		containers.putIfAbsent(containerId, container);
-		LOG.info(debugLogger.info(" addContainer " + containerId ));
+		LOG.info(debugLogger.info(" addContainer " + containerId));
 	}
 
 	@Override
 	public void onContainerStopped(ContainerId containerId) {
 		LOG.debug("Succeeded to stop Container {}", containerId);
-		LOG.info(debugLogger.info(" onContainerStopped " + containerId ));
+		LOG.info(debugLogger.info(" onContainerStopped " + containerId));
 		containers.remove(containerId);
 	}
 
 	@Override
 	public void onContainerStatusReceived(ContainerId containerId, ContainerStatus containerStatus) {
 		LOG.debug("Container Status: id = {}, status = {}", containerId, containerStatus);
-		LOG.info(debugLogger.info(" onContainerStatusReceived " + containerId ));
+		LOG.info(debugLogger.info(" onContainerStatusReceived " + containerId));
 	}
 
 	@Override
 	public void onContainerStarted(ContainerId containerId, Map<String, ByteBuffer> allServiceResponse) {
 		LOG.debug("Succeeded to start Container {}", containerId);
-		
-		LOG.info(debugLogger.info(" onContainerStarted " + containerId ));
+
+		LOG.info(debugLogger.info(" onContainerStarted " + containerId));
 		Container container = containers.get(containerId);
 		if (container != null) {
 			LOG.info(debugLogger.info(" onContainerStarted" + container.toString()));
@@ -63,7 +63,7 @@ public class NMCallbackHandler implements NMClientAsync.CallbackHandler {
 
 	@Override
 	public void onStartContainerError(ContainerId containerId, Throwable t) {
-		LOG.info(debugLogger.info(" onStartContainerError " + containerId ));
+		LOG.info(debugLogger.info(" onStartContainerError " + containerId));
 		LOG.error("Failed to start Container {}", containerId);
 		containers.remove(containerId);
 		mohaManager.numCompletedContainers.incrementAndGet();
@@ -71,13 +71,13 @@ public class NMCallbackHandler implements NMClientAsync.CallbackHandler {
 
 	@Override
 	public void onGetContainerStatusError(ContainerId containerId, Throwable t) {
-		LOG.info(debugLogger.info(" onGetContainerStatusError " + containerId ));
+		LOG.info(debugLogger.info(" onGetContainerStatusError " + containerId));
 		LOG.error("Failed to query the status of Container {}", containerId);
 	}
 
 	@Override
 	public void onStopContainerError(ContainerId containerId, Throwable t) {
-		LOG.info(debugLogger.info(" onStopContainerError " + containerId ));
+		LOG.info(debugLogger.info(" onStopContainerError " + containerId));
 		LOG.error("Failed to stop Container {}", containerId);
 		containers.remove(containerId);
 	}

@@ -54,28 +54,29 @@ public class MOHA_Zookeeper {
 	private static void setZookeeperDir(String zookeeperDir) {
 		MOHA_Zookeeper.zookeeperDir = zookeeperDir;
 	}
-	public boolean exist() throws KeeperException, InterruptedException{
+
+	public boolean exist() throws KeeperException, InterruptedException {
 		String rootDirs = "/" + getZookeeperDir();
-		if(zk!=null){
-			if(zk.exists(rootDirs, false)!=null){
+		if (zk != null) {
+			if (zk.exists(rootDirs, false) != null) {
 				return true;
 			}
 		}
 		return false;
 	}
+
 	public void setRequests(Boolean stop) throws IOException, InterruptedException, KeeperException {
 
 		String rootDirs = "/" + getZookeeperDir();
 		String requestDirs = rootDirs + "/rq";
-		
 
 		if (zk != null) {
 			try {
 				Stat root = zk.exists(rootDirs, false);
-				if(root == null){
+				if (root == null) {
 					LOG.info("broker is not running yet");
 					return;
-				}else{
+				} else {
 					Stat s = zk.exists(requestDirs, false);
 					if (s == null) {
 						LOG.info("Creating a znode for request");
@@ -89,7 +90,7 @@ public class MOHA_Zookeeper {
 						zk.setData(requestDirs, "false".getBytes(), -1);
 					}
 				}
-				
+
 			} catch (KeeperException e) {
 				System.out.println("Keeper exception when instantiating queue: " + e.toString());
 			} catch (InterruptedException e) {
@@ -106,21 +107,38 @@ public class MOHA_Zookeeper {
 		StringBuilder command = new StringBuilder();
 		String idsDirs = "/" + getZookeeperDir() + "/brokers/ids";
 
-		//command.append("\"");
+		// command.append("\"");
 		List<String> ids = zk.getChildren(idsDirs, false);
 		LOG.info("ids = {}", ids.toString());
 		for (String id : ids) {
-			String brokerInfo = new String(zk.getData(idsDirs + "/" + id, false, null));			
+			String brokerInfo = new String(zk.getData(idsDirs + "/" + id, false, null));
 			LOG.info("server = {}",
 					brokerInfo.substring(brokerInfo.lastIndexOf("[") + 14, brokerInfo.lastIndexOf("]") - 1));
 			command.append(brokerInfo.substring(brokerInfo.lastIndexOf("[") + 14, brokerInfo.lastIndexOf("]") - 1))
 					.append(",");
 		}
 		command.deleteCharAt(command.length() - 1);
-		//command.append("\"");
+		// command.append("\"");
 		zookeeperConnect = command.toString();
 
 		return zookeeperConnect;
+	}
+
+	public boolean isKafkaDebugServiceAvailable() {
+		if (zk != null) {
+			String idsDirs = "/brokers/ids";
+
+			try {
+				List<String> ids = zk.getChildren(idsDirs, false);
+				if(ids.size() > 2){
+					return true;
+				}
+			} catch (KeeperException | InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		return false;
 	}
 
 	public boolean checkRequests() throws IOException, InterruptedException, KeeperException {
@@ -128,9 +146,9 @@ public class MOHA_Zookeeper {
 		LOG.info("Checking request from MOHA manager");
 		String rootDirs = "/" + getZookeeperDir();
 		String requestDirs = rootDirs + "/rq";
-		if(zk!=null){
-			if(zk.exists(rootDirs, false)!=null){
-				if(zk.exists(requestDirs, false)!=null){
+		if (zk != null) {
+			if (zk.exists(rootDirs, false) != null) {
+				if (zk.exists(requestDirs, false) != null) {
 					String rqInfo = new String(zk.getData(requestDirs, false, null));
 
 					LOG.info("rqInfo ------------------------- = {}", rqInfo);
@@ -140,7 +158,7 @@ public class MOHA_Zookeeper {
 				}
 			}
 		}
-		
+
 		return true;
 
 	}

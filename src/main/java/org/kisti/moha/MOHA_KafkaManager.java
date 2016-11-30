@@ -108,43 +108,45 @@ public class MOHA_KafkaManager {
 	protected NMClientAsync nmClient;
 	private KBCallbackHandler containerListener;
 	private List<Thread> launchThreads = new ArrayList<>();
-	
+
 	private static MOHA_Logger debugLogger;
-	
+
 	private MOHA_KafkaInfo kafkaInfo;
 	Vector<CharSequence> statistic = new Vector<>(30);
 
 	public MOHA_KafkaManager(String[] args) throws IOException {
-		debugLogger = new MOHA_Logger();
+		
 		conf = new YarnConfiguration();
 		fileSystem = FileSystem.get(conf);
 		for (String str : args) {
 			LOG.info(str);
 		}
-		
-		kafkaInfo = new MOHA_KafkaInfo();
-		
-		kafkaInfo.setKafkaClusterName(args[0]);
-		kafkaInfo.setBrokerMem(Integer.parseInt(args[1]));
-		kafkaInfo.setNumBrokers(Integer.parseInt(args[2]));
-		kafkaInfo.setNumPartitions(kafkaInfo.getNumBrokers());
-		kafkaInfo.setLibsPath(args[3]);
-		kafkaInfo.setStartingTime(Long.parseLong(args[4]));
-		kafkaInfo.setKafkaClusterId(args[5]);
-		
-		LOG.info("queue name = {}, executor memory = {}, num executors = {}, jdlPath = {}", kafkaInfo.getKafkaClusterName(),
-				kafkaInfo.getBrokerMem(), kafkaInfo.getNumBrokers(), kafkaInfo.getLibsPath());
 
+		setKafkaInfo(new MOHA_KafkaInfo());
+
+		getKafkaInfo().setAppId(args[0]);
+		getKafkaInfo().setBrokerMem(Integer.parseInt(args[1]));
+		getKafkaInfo().setNumBrokers(Integer.parseInt(args[2]));
+		getKafkaInfo().setStartingTime(Long.parseLong(args[3]));
+
+		getKafkaInfo().getConf().setKafkaVersion(args[4]);
+		getKafkaInfo().getConf().setKafkaClusterId(args[5]);		
+		getKafkaInfo().getConf().setDebugQueueName(args[6]);
+		getKafkaInfo().getConf().setEnableKafkaDebug(args[7]);
+		getKafkaInfo().getConf().setEnableMysqlLog(args[8]);
+
+		getKafkaInfo().setNumPartitions(getKafkaInfo().getNumBrokers());
+
+		debugLogger = new MOHA_Logger(Boolean.parseBoolean(getKafkaInfo().getConf().getEnableKafkaDebug()),getKafkaInfo().getConf().getDebugQueueName());
 		
+		LOG.info(getKafkaInfo().getConf().toString());
+		debugLogger.info(getKafkaInfo().getConf().toString());
+		debugLogger.info("MOHA_KafkaManager");
+		debugLogger.info(getKafkaInfo().toString());
 		String ipAddress = InetAddress.getLocalHost().getHostAddress();
 		LOG.info("Host idAdress = {}", ipAddress);
 
-				
-
-
 	}
-
-
 
 	public void run() throws YarnException, IOException {
 		LOG.info(debugLogger.info("MOHA_KafkaManager is to be running ..."));
@@ -164,20 +166,20 @@ public class MOHA_KafkaManager {
 		nmClient.init(conf);
 		nmClient.start();
 
-		kafkaInfo.setAllocationTime(System.currentTimeMillis());
+		getKafkaInfo().setAllocationTime(System.currentTimeMillis());
 		// request resources to launch containers
 		Resource capacity = Records.newRecord(Resource.class);
-		capacity.setMemory(kafkaInfo.getBrokerMem());
+		capacity.setMemory(getKafkaInfo().getBrokerMem());
 		Priority pri = Records.newRecord(Priority.class);
 		pri.setPriority(0);
 
-		for (int i = 0; i < kafkaInfo.getNumBrokers(); i++) {
+		for (int i = 0; i < getKafkaInfo().getNumBrokers(); i++) {
 			LOG.info(debugLogger.info("Request containers from Resourse Manager, containerNumber = " + i));
 			ContainerRequest containerRequest = new ContainerRequest(capacity, null, null, pri);
 			amRMClient.addContainerRequest(containerRequest);
 			numOfContainers++;
 		}
-		
+
 		try {
 			Thread.sleep(1000);
 
@@ -200,21 +202,22 @@ public class MOHA_KafkaManager {
 		LOG.info(debugLogger.info("The number of completed Containers = " + this.numCompletedContainers.get()));
 		LOG.info(debugLogger.info("Containers have all completed, so shutting down NMClient and AMRMClient ..."));
 
-		kafkaInfo.setMakespan(System.currentTimeMillis() - kafkaInfo.getStartingTime());debugLogger.info("setMakespan");
-		
-		MOHA_Zookeeper zk = new MOHA_Zookeeper(kafkaInfo.getKafkaClusterId());
+		getKafkaInfo().setMakespan(System.currentTimeMillis() - getKafkaInfo().getStartingTime());
+		debugLogger.info("setMakespan");
+
+		MOHA_Zookeeper zk = new MOHA_Zookeeper(getKafkaInfo().getConf().getKafkaClusterId());
 		zk.delete();
 		zk.close();
-		
-		debugLogger.info(kafkaInfo.getKafkaClusterId());
-		nmClient.stop();debugLogger.info("stop");
-		amRMClient.unregisterApplicationMaster(FinalApplicationStatus.SUCCEEDED, "Application complete!", null);debugLogger.info("unregisterApplicationMaster");
-		amRMClient.stop();debugLogger.info("stop");
-		
+
+		debugLogger.info(getKafkaInfo().getConf().getKafkaClusterId());
+		nmClient.stop();
+		debugLogger.info("stop");
+		amRMClient.unregisterApplicationMaster(FinalApplicationStatus.SUCCEEDED, "Application complete!", null);
+		debugLogger.info("unregisterApplicationMaster");
+		amRMClient.stop();
+		debugLogger.info("stop");
 
 	}
-
-
 
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
@@ -232,6 +235,14 @@ public class MOHA_KafkaManager {
 
 	}
 
+	public MOHA_KafkaInfo getKafkaInfo() {
+		return kafkaInfo;
+	}
+
+	public void setKafkaInfo(MOHA_KafkaInfo kafkaInfo) {
+		this.kafkaInfo = kafkaInfo;
+	}
+
 	protected class ContainerLauncher implements Runnable {
 		private Container container;
 		@SuppressWarnings("unused")
@@ -247,14 +258,20 @@ public class MOHA_KafkaManager {
 			LOG.info(containerListener.toString());
 		}
 
-		public String getLaunchCommand(Container container, int id) {
+		public String getLaunchCommand(Container container, int containerId) {
 			Vector<CharSequence> vargs = new Vector<>(30);
 			vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
 			vargs.add(MOHA_KafkaBrokerLauncher.class.getName());
-			vargs.add(kafkaInfo.getKafkaClusterId());
+			// set broker id
 			vargs.add(container.getId().toString());
-			vargs.add(String.valueOf(id));
-			vargs.add(kafkaInfo.getLibsPath().replace(".tgz", ""));
+			vargs.add(String.valueOf(containerId));
+
+			vargs.add(getKafkaInfo().getConf().getKafkaVersion());
+			vargs.add(getKafkaInfo().getConf().getKafkaClusterId());			
+			vargs.add(getKafkaInfo().getConf().getDebugQueueName());
+			vargs.add(getKafkaInfo().getConf().getEnableKafkaDebug());
+			vargs.add(getKafkaInfo().getConf().getEnableMysqlLog());
+
 			vargs.add("1><LOG_DIR>/MOHA_KafkaBrokerLauncher.stdout");
 			vargs.add("2><LOG_DIR>/MOHA_KafkaBrokerLauncher.stderr");
 			StringBuilder command = new StringBuilder();

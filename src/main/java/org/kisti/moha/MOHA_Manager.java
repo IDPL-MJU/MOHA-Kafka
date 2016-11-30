@@ -112,71 +112,80 @@ public class MOHA_Manager {
 	private List<Thread> launchThreads = new ArrayList<>();
 	private static MOHA_Queue queue;
 	private static MOHA_Logger debugLogger;
-	//private static String inputQueueName;
-	
+	// private static String inputQueueName;
+
 	private MOHA_Info appInfo;
 	private MOHA_Database db;
 
 	Vector<CharSequence> statistic = new Vector<>(30);
 
 	public MOHA_Manager(String[] args) throws IOException {
-		
+
 		conf = new YarnConfiguration();
 		fileSystem = FileSystem.get(conf);
-		for(String str : args){
+		for (String str : args) {
 			LOG.info(str);
 		}
-		db = new MOHA_Database();
-		appInfo = new MOHA_Info();
-		appInfo.setAppId(args[0]);
-		appInfo.setExecutorMemory(Integer.parseInt(args[1]));
-		appInfo.setNumExecutors(Integer.parseInt(args[2]));
-		appInfo.setNumPartitions(appInfo.getNumExecutors());
-		appInfo.setJdlPath(args[3]);
-		appInfo.setStartingTime(Long.parseLong(args[4]));
-		appInfo.setKakfaClusterId(args[5]);
 		
-		LOG.info("queue name = {}, executor memory = {}, num executors = {}, jdlPath = {}", appInfo.getAppId(),
-				appInfo.getExecutorMemory(), appInfo.getNumExecutors(), appInfo.getJdlPath());
 
-		//inputQueueName = appInfo.getAppId() + MOHA_Properties.inputQueue;
-		appInfo.setQueueName(appInfo.getAppId());
-		
+		setAppInfo(new MOHA_Info());
+		getAppInfo().setAppId(args[0]);
+		getAppInfo().setExecutorMemory(Integer.parseInt(args[1]));
+		getAppInfo().setNumExecutors(Integer.parseInt(args[2]));
+		getAppInfo().setNumPartitions(getAppInfo().getNumExecutors());
+		getAppInfo().setStartingTime(Long.parseLong(args[3]));
+
+		getAppInfo().getConf().setKafkaVersion(args[4]);
+		getAppInfo().getConf().setKafkaClusterId(args[5]);
+		getAppInfo().getConf().setDebugQueueName(args[6]);
+		getAppInfo().getConf().setEnableKafkaDebug(args[7]);
+		getAppInfo().getConf().setEnableMysqlLog(args[8]);
+
+		LOG.info(getAppInfo().toString());
+
+		getAppInfo().setQueueName(getAppInfo().getAppId());
 
 		String ipAddress = InetAddress.getLocalHost().getHostAddress();
 		LOG.info("Host idAdress = {}", ipAddress);
-		
-		debugLogger = new MOHA_Logger();
+
+		debugLogger = new MOHA_Logger(Boolean.parseBoolean(getAppInfo().getConf().getEnableKafkaDebug()),
+				getAppInfo().getConf().getDebugQueueName());
+		db = new MOHA_Database(Boolean.parseBoolean(getAppInfo().getConf().getEnableMysqlLog()));
 		debugLogger.info("init queue");
 		initQueue();
-		
+
 	}
-	private void initQueue(){
+
+	private void initQueue() {
 		long startManager = System.currentTimeMillis();
-		
-		queue = new MOHA_Queue(appInfo.getKakfaClusterId(),appInfo.getQueueName());debugLogger.info("MOHA_Queue");
-		queue.create(appInfo.getNumPartitions(), 1);debugLogger.info("queue.create");
-		queue.register();debugLogger.info("queue.register");
-		
+
+		queue = new MOHA_Queue(getAppInfo().getConf().getKafkaClusterId(), getAppInfo().getQueueName());
+		debugLogger.info("MOHA_Queue");
+		queue.create(getAppInfo().getNumPartitions(), 1);
+		debugLogger.info("queue.create");
+		queue.register();
+		debugLogger.info("queue.register");
+
 		LOG.info(debugLogger.info("put messages to the queue ..."));
-		//put messages to the queue
+		// put messages to the queue
 		FileReader fileReader;
 		try {
-			fileReader = new FileReader(appInfo.getJdlPath());
+			fileReader = new FileReader(MOHA_Properties.jdl);
 			BufferedReader buff = new BufferedReader(fileReader);
-			appInfo.setNumCommands(Integer.parseInt(buff.readLine()));
-			appInfo.setCommand(buff.readLine());
+			getAppInfo().setNumCommands(Integer.parseInt(buff.readLine()));
+			getAppInfo().setCommand(buff.readLine());
 			buff.close();
-			
-			for (int i = 0; i < appInfo.getNumCommands(); i++) {
-				queue.push(Integer.toString(i), appInfo.getCommand());				
+
+			for (int i = 0; i < getAppInfo().getNumCommands(); i++) {
+				queue.push(Integer.toString(i), getAppInfo().getCommand());
 			}
-			appInfo.setInitTime(System.currentTimeMillis() - startManager);
+			getAppInfo().setInitTime(System.currentTimeMillis() - startManager);
 		} catch (NumberFormatException | IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}		
+		}
 	}
+
 	private void run() throws YarnException, IOException {
 		LOG.info(debugLogger.info("MOHA_Manager is to be running ..."));
 
@@ -187,32 +196,31 @@ public class MOHA_Manager {
 		RegisterApplicationMasterResponse response;
 		response = amRMClient.registerApplicationMaster(NetUtils.getHostname(), -1, "");
 		LOG.info("MOHA Manager is registered with response : {}", response.toString());
-		
+
 		LOG.info(debugLogger.info("nmClient.start(); ..."));
-		
+
 		containerListener = new NMCallbackHandler(this);
 		nmClient = NMClientAsync.createNMClientAsync(containerListener);
 		nmClient.init(conf);
 		nmClient.start();
-				
-		
-		appInfo.setAllocationTime(System.currentTimeMillis());
-		//request resources to launch containers
+
+		getAppInfo().setAllocationTime(System.currentTimeMillis());
+		// request resources to launch containers
 		Resource capacity = Records.newRecord(Resource.class);
-		capacity.setMemory(appInfo.getExecutorMemory());
+		capacity.setMemory(getAppInfo().getExecutorMemory());
 		Priority pri = Records.newRecord(Priority.class);
 		pri.setPriority(0);
-		
-		for (int i = 0; i < appInfo.getNumExecutors(); i++) {
-			LOG.info(debugLogger.info("Request containers from Resourse Manager, containerNumber = " + i));			
+
+		for (int i = 0; i < getAppInfo().getNumExecutors(); i++) {
+			LOG.info(debugLogger.info("Request containers from Resourse Manager, containerNumber = " + i));
 			ContainerRequest containerRequest = new ContainerRequest(capacity, null, null, pri);
 			amRMClient.addContainerRequest(containerRequest);
 			numOfContainers++;
-		}	
-		//initQueue();
+		}
+		// initQueue();
 		try {
 			Thread.sleep(1000);
-			
+
 		} catch (InterruptedException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
@@ -229,16 +237,16 @@ public class MOHA_Manager {
 				e.printStackTrace();
 			}
 		}
-		LOG.info(debugLogger.info("The number of completed Containers = " + this.numCompletedContainers.get()));		
+		LOG.info(debugLogger.info("The number of completed Containers = " + this.numCompletedContainers.get()));
 		LOG.info(debugLogger.info("Containers have all completed, so shutting down NMClient and AMRMClient ..."));
 
-		appInfo.setMakespan(System.currentTimeMillis() - appInfo.getStartingTime());
-		db.insertAppInfoToDababase(appInfo);
+		getAppInfo().setMakespan(System.currentTimeMillis() - getAppInfo().getStartingTime());
+		db.insertAppInfoToDababase(getAppInfo());
 		nmClient.stop();
 		amRMClient.unregisterApplicationMaster(FinalApplicationStatus.SUCCEEDED, "Application complete!", null);
 		amRMClient.stop();
-		queue.deleteQueue();	
-		
+		queue.deleteQueue();
+
 	}
 
 	public static void main(String[] args) {
@@ -255,6 +263,14 @@ public class MOHA_Manager {
 			e.printStackTrace();
 		}
 
+	}
+
+	public MOHA_Info getAppInfo() {
+		return appInfo;
+	}
+
+	public void setAppInfo(MOHA_Info appInfo) {
+		this.appInfo = appInfo;
 	}
 
 	protected class ContainerLauncher implements Runnable {
@@ -276,10 +292,18 @@ public class MOHA_Manager {
 			Vector<CharSequence> vargs = new Vector<>(30);
 			vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
 			vargs.add(MOHA_TaskExecutor.class.getName());
-			vargs.add(appInfo.getAppId());
+			
+			//add parameters
+			vargs.add(getAppInfo().getAppId());
 			vargs.add(container.getId().toString());
 			vargs.add(String.valueOf(id));
-			vargs.add(appInfo.getKakfaClusterId());
+			
+			vargs.add(getAppInfo().getConf().getKafkaVersion());
+			vargs.add(getAppInfo().getConf().getKafkaClusterId());			
+			vargs.add(getAppInfo().getConf().getDebugQueueName());
+			vargs.add(getAppInfo().getConf().getEnableKafkaDebug());
+			vargs.add(getAppInfo().getConf().getEnableMysqlLog());
+			
 			vargs.add("1><LOG_DIR>/MOHA_TaskExecutor.stdout");
 			vargs.add("2><LOG_DIR>/MOHA_TaskExecutor.stderr");
 			StringBuilder command = new StringBuilder();

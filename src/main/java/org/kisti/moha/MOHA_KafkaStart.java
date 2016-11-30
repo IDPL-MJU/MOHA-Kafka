@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 
 public class MOHA_KafkaStart {
 	private static final Logger LOG = LoggerFactory.getLogger(MOHA_KafkaStart.class);
-	private YarnConfiguration conf;
+	private YarnConfiguration yarnConf;
 	private YarnClient yarnClient;
 	private ApplicationId appId;
 	private FileSystem fs;
@@ -106,10 +106,10 @@ public class MOHA_KafkaStart {
 	public MOHA_KafkaStart(String[] args) throws IOException {
 		//[UPDATE] Some logics are shifted into the main function
 
-		conf = new YarnConfiguration();
+		yarnConf = new YarnConfiguration();
 		yarnClient = YarnClient.createYarnClient();
-		yarnClient.init(conf);
-		fs = FileSystem.get(conf);
+		yarnClient.init(yarnConf);
+		fs = FileSystem.get(yarnConf);
 	}//The end of MOHA_KafkaClient constructor
 	
 	
@@ -124,18 +124,18 @@ public class MOHA_KafkaStart {
 		 */
 		//[UPDATE] change the hadArg flags into "true" except for the help option
 		Options option = new Options();
-		option.addOption("appname", true, "MOHA Application Name (Default: MOHA)");
+		option.addOption("appname", true, "Application name (Default: Kafka cluster builder");
 		option.addOption("priority", true, "Application Priority (Default: 0)");
 		option.addOption("queue", true,
 				"RM Queue in which this application is to be submitted (Default: default)");
 		option.addOption("manager_memory", true, 
-				"Amount of memory in MB to be requested to run the MOHA Manager (Default: 1024)");
+				"Amount of memory in MB to be requested to run the MOHA KafkaManager (Default: 1024)");
 		option.addOption("jar", true,
-				"JAR file containing the MOHA Manager and Task Executor (Default: MOHA.jar)");
+				"JAR file containing the MOHA_KafkaManager and MOHA_KafkaBrokerLauncher (Default: MOHA.jar)");
 		option.addOption("broker_memory", true,
 				"Amount of memory in MB to be requested to run the MOHA TaskExecutor (Default: 1024)");
-		option.addOption("num_brokers", true, "Number of MOHA Task Executors (Default: 1)");
-		option.addOption("kafka_tgz", true, "Job Description Language file that contains the MOHA job specification (must specified)");		
+		option.addOption("num_brokers", true, "Number of brokers (Default: 1)");
+		option.addOption("kafka_tgz", true, "Kafka binary package including libraries required to deploy Kakfa cluster (must specified)");		
 		option.addOption("help", false, "Print Usage of MOHA_KafkaClient"); //Add the help functionality in MOHA_KafkaClient
 
 		CommandLine inputParser = new GnuParser().parse(option, args);
@@ -147,7 +147,7 @@ public class MOHA_KafkaStart {
 		}
 		
 		//[UPDATE] Add default values for options
-		appName = inputParser.getOptionValue("appname", "MOHA");
+		appName = inputParser.getOptionValue("appname", "KAFKA Cluster builder");
 		priority = Integer.parseInt(inputParser.getOptionValue("priority", "0"));
 		queue = inputParser.getOptionValue("queue", "default");
 		managerMemory = Integer.parseInt(inputParser.getOptionValue("manager_memory", "1024"));
@@ -157,7 +157,7 @@ public class MOHA_KafkaStart {
 		
 		//[UPDATE] The Job Description File is necessary to execute MOHA tasks
 		if(!inputParser.hasOption("kafka_tgz")) {
-			LOG.error("The Job Description File should be provided !");
+			LOG.error("Kafka binary package should be provided !");
 			return false;
 		}
 		kafkaLibsPath = inputParser.getOptionValue("kafka_tgz");
@@ -172,7 +172,7 @@ public class MOHA_KafkaStart {
 		//[UPDATE] Unless there is a minimum memory requirement, positive values look O.K.
 		//if (managerMemory < 32) {
 		if (managerMemory <= 0) {
-			LOG.error("Invalid value is specified for the amount of memory of the MOHA Manager");
+			LOG.error("Invalid value is specified for the amount of memory of the MOHA KafkaManager");
 			return false;
 			//throw new IllegalArgumentException(
 			//		"Invalid value specified for amout of memory in MB to be requested to run the MOHA Manager");
@@ -180,14 +180,14 @@ public class MOHA_KafkaStart {
 		
 		//if (executorMemory < 32) {
 		if (brokerMem <= 0) {
-			LOG.error("Invalid value is specified for the amount of memory of the MOHA TaskExecutor");
+			LOG.error("Invalid value is specified for the amount of memory of the MOHA_KafkaBrokerLauncher");
 			return false;
 			//throw new IllegalArgumentException(
 			//		"Invalid value specified for amount of memory in MB to be requested to run the MOHA TaskExecutor");
 		}
 		
 		if (numBrokers < 1) {
-			LOG.error("Invalid value is specified for the number of MOHA TaskExecutors");
+			LOG.error("Invalid value is specified for the number of MOHA_KafkaBrokerLauncher");
 			return false;
 			//throw new IllegalArgumentException(
 			//		"Invalid value specified for number of MOHA TaskEcecutor to be executed");
@@ -208,26 +208,8 @@ public class MOHA_KafkaStart {
 
 	public boolean run() throws YarnException, IOException {
 		
-		Properties prop = new Properties();
-		/* Loading MOHA.Conf File */
-		String kafka_libs = "/usr/hdp/kafka_2.11-0.9.0.0/libs/*";
-		String kafkaVersion = "kafka_2.11-0.10.1.0";
-		String kafkaClusterId = "KafkaCluster";
-		try {
-			prop.load(new FileInputStream("conf/MOHA.conf"));
-			kafka_libs = prop.getProperty("MOHA.dependencies.kafka.libs");
-			kafkaVersion = prop.getProperty("MOHA.dependencies.kafka.version");
-			kafkaClusterId = prop.getProperty("MOHA.kafka.cluster.id");
-			System.out.println(kafka_libs);
-			System.out.println(kafkaVersion);
-			System.out.println(kafkaClusterId);
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		MOHA_Configuration mohaConf = new MOHA_Configuration("conf/MOHA.conf");
+		LOG.info(mohaConf.toString());
 		
 		LOG.info("yarnClient = {}", yarnClient.toString());
 		yarnClient.start();
@@ -272,7 +254,7 @@ public class MOHA_KafkaStart {
 		LOG.info("Jar resource = {}", jarResource.toString());
 
 		Path kafkaSrc = new Path(this.kafkaLibsPath);
-		String pathSuffixkafka_tgz = appName + "/" + appId.getId() + "/" + kafkaVersion + ".tgz";
+		String pathSuffixkafka_tgz = appName + "/" + appId.getId() + "/" + mohaConf.getKafkaVersion() + ".tgz";
 		Path kafkaDest = new Path(fs.getHomeDirectory(), pathSuffixkafka_tgz);
 		fs.copyFromLocalFile(false, true, kafkaSrc, kafkaDest);
 		
@@ -291,7 +273,7 @@ public class MOHA_KafkaStart {
 		env.put("KAFKALIBSLEN", Long.toString(kafkaStatus.getLen()));
 
 		StringBuilder classPathEnv = new StringBuilder().append(File.pathSeparatorChar).append("./app.jar");
-		for (String c : conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH,
+		for (String c : yarnConf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH,
 				YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
 			classPathEnv.append(File.pathSeparatorChar);
 			classPathEnv.append(c.trim());
@@ -299,7 +281,7 @@ public class MOHA_KafkaStart {
 		
 		
 		classPathEnv.append(File.pathSeparatorChar);
-		classPathEnv.append(kafka_libs);
+		classPathEnv.append(mohaConf.getKafkaLibsDirs());
 		classPathEnv.append(File.pathSeparatorChar);
 		classPathEnv.append(Environment.CLASSPATH.$());
 		env.put("CLASSPATH", classPathEnv.toString());
@@ -314,16 +296,22 @@ public class MOHA_KafkaStart {
 
 		Vector<CharSequence> vargs = new Vector<>();
 		vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
-
 		vargs.add(MOHA_KafkaManager.class.getName());
+		//add parameters
 		vargs.add(appId.toString());
 		vargs.add(String.valueOf(brokerMem));
-		vargs.add(String.valueOf(numBrokers));
-		vargs.add(kafkaVersion + ".tgz");
+		vargs.add(String.valueOf(numBrokers));		
 		vargs.add(String.valueOf(startingTime));
-		vargs.add(kafkaClusterId);
+		
+		vargs.add(mohaConf.getKafkaVersion());
+		vargs.add(mohaConf.getKafkaClusterId());		
+		vargs.add(mohaConf.getDebugQueueName());
+		vargs.add(mohaConf.getEnableKafkaDebug());
+		vargs.add(mohaConf.getEnableMysqlLog());		
+		
 		vargs.add("1><LOG_DIR>/MOHA_KafkaManager.stdout");
 		vargs.add("2><LOG_DIR>/MOHA_KafkaManager.stderr");
+		
 		StringBuilder command = new StringBuilder();
 		for (CharSequence str : vargs) {
 			command.append(str).append(" ");

@@ -7,8 +7,5 @@ public interface MOHA_Properties {
 	final static String ExecutorDb = "exe";
 	final static String AppDb = "app";
 	final static String kafkaLogDir = "kafka-log";
-	final static String serverPros = "broker.properties";		   
-	final static boolean DEBUG_MYSQL = false;
-	final static boolean DEBUG_KAFKALOG = true;
-	
+	final static String serverPros = "broker.properties";
 }

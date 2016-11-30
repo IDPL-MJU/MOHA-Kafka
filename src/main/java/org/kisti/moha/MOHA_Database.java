@@ -15,7 +15,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MOHA_Database {
+
 	private static final Logger LOG = LoggerFactory.getLogger(MOHA_TaskExecutor.class);
+	private boolean isEnable;
+
+	public MOHA_Database(boolean isEnable) {
+
+		// TODO Auto-generated constructor stub
+		this.isEnable = isEnable;
+	}
 
 	private Connection getConnection() {
 
@@ -24,6 +32,8 @@ public class MOHA_Database {
 		String password = "password";
 
 		Connection connection = null;
+		if (!isEnable)
+			return null;
 		LOG.info("getConnection");
 		try {
 			LOG.info("Start getting connection");
@@ -45,6 +55,8 @@ public class MOHA_Database {
 	private void runCommand(String sql) {
 		Connection connection = null;
 		PreparedStatement preStmt = null;
+		if (!isEnable)
+			return;
 		LOG.info("sql command : {}", sql);
 		connection = getConnection();
 		try {
@@ -60,47 +72,43 @@ public class MOHA_Database {
 	}
 
 	public void insertExecutorInfoToDatabase(MOHA_ExecutorInfo eInfo) {
-		if (MOHA_Properties.DEBUG_MYSQL) {
-			String sql = "insert into " + MOHA_Properties.ExecutorDb
-					+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
-					+ eInfo.getAppId() + "\"" + ",\"" + eInfo.getExecutorId() + "\"" + ",\"" + eInfo.getContainerId()
-					+ "\"" + ",\"" + eInfo.getHostname() + "\"" + ",\"" + MOHA_Common.convertLongToDate(eInfo.getLaunchedTime())
-					+ "\"" + "," + eInfo.getNumExecutedTasks() + "," + eInfo.getRunningTime() + ","
-					+ eInfo.getLaunchedTime() + "," + eInfo.getFirstMessageTime() + "," + eInfo.getPollingTime() + ","
-					+ eInfo.getEndingTime() + ")";
+		if (!isEnable)
+			return;
 
-			runCommand(sql);
-		} else {
-			LOG.info("----------------");
-		}
+		String sql = "insert into " + MOHA_Properties.ExecutorDb
+				+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
+				+ eInfo.getAppId() + "\"" + ",\"" + eInfo.getExecutorId() + "\"" + ",\"" + eInfo.getContainerId() + "\""
+				+ ",\"" + eInfo.getHostname() + "\"" + ",\"" + MOHA_Common.convertLongToDate(eInfo.getLaunchedTime())
+				+ "\"" + "," + eInfo.getNumExecutedTasks() + "," + eInfo.getRunningTime() + ","
+				+ eInfo.getLaunchedTime() + "," + eInfo.getFirstMessageTime() + "," + eInfo.getPollingTime() + ","
+				+ eInfo.getEndingTime() + ")";
+
+		runCommand(sql);
 
 	}
 
 	public void insertAppInfoToDababase(MOHA_Info appInfo) {
+		if (!isEnable)
+			return;
 
-		if (MOHA_Properties.DEBUG_MYSQL) {
-			String sql = "insert into " + MOHA_Properties.AppDb
-					+ "(appId, executorMemory, numExecutors, numPartitions, startingTime, initTime,makespan, numCommands, command) values (\""
-					+ appInfo.getAppId() + "\"," + appInfo.getExecutorMemory() + "," + appInfo.getNumExecutors() + ","
-					+ appInfo.getNumPartitions() + "," + "\" " + MOHA_Common.convertLongToDate(appInfo.getStartingTime()) + "\","
-					+ appInfo.getInitTime() + "," + appInfo.getMakespan() + "," + appInfo.getNumCommands() + ",\""
-					+ appInfo.getCommand() + "\")";
+		String sql = "insert into " + MOHA_Properties.AppDb
+				+ "(appId, executorMemory, numExecutors, numPartitions, startingTime, initTime,makespan, numCommands, command) values (\""
+				+ appInfo.getAppId() + "\"," + appInfo.getExecutorMemory() + "," + appInfo.getNumExecutors() + ","
+				+ appInfo.getNumPartitions() + "," + "\" " + MOHA_Common.convertLongToDate(appInfo.getStartingTime())
+				+ "\"," + appInfo.getInitTime() + "," + appInfo.getMakespan() + "," + appInfo.getNumCommands() + ",\""
+				+ appInfo.getCommand() + "\")";
 
-			runCommand(sql);
-			sql = "update " + MOHA_Properties.ExecutorDb + " set " + " allocationTime = " + appInfo.getAllocationTime()
-					+ " where appId = \"" + appInfo.getAppId() + "\"";
-			runCommand(sql);
-		} else {
-			LOG.info("----------------");
-		}
+		runCommand(sql);
+		sql = "update " + MOHA_Properties.ExecutorDb + " set " + " allocationTime = " + appInfo.getAllocationTime()
+				+ " where appId = \"" + appInfo.getAppId() + "\"";
+		runCommand(sql);
+
 	}
-
-
 
 	public static void main(String[] args) {
 		MOHA_Info appInfo = new MOHA_Info();
 		MOHA_ExecutorInfo info = new MOHA_ExecutorInfo();
-		MOHA_Database data = new MOHA_Database();
+		MOHA_Database data = new MOHA_Database(true);
 		data.insertAppInfoToDababase(appInfo);
 		data.insertExecutorInfoToDatabase(info);
 	}

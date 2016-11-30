@@ -21,6 +21,8 @@ import kafka.utils.ZkUtils;
 import kafka.utils.ZkUtils$;
 
 public class MOHA_Queue {
+	
+
 	private static final Logger LOG = LoggerFactory.getLogger(MOHA_Queue.class);
 
 	private final int sessionTimeout = 30000;
@@ -39,14 +41,23 @@ public class MOHA_Queue {
 
 	public MOHA_Queue(String queueName) {
 		this.queueName = queueName;
+		LOG.info(this.toString());
 	}
 
 	public MOHA_Queue(String clusterId, String queueName) {
 		this.queueName = queueName;
 		this.clusterId = clusterId;
 		init();
+		LOG.info(this.toString());
 	}
-
+	@Override
+	public String toString() {
+		return "MOHA_Queue [sessionTimeout=" + sessionTimeout + ", connectionTimeout=" + connectionTimeout
+				+ ", zkClient=" + zkClient + ", zkConnection=" + zkConnection + ", zkUtils=" + zkUtils + ", consumer="
+				+ consumer + ", producer=" + producer + ", queueName=" + queueName + ", clusterId=" + clusterId
+				+ ", bootstrapServers=" + bootstrapServers + ", zookeeperConnect=" + zookeeperConnect + ", zk=" + zk
+				+ "]";
+	}
 	private void init() {
 		zk = new MOHA_Zookeeper(clusterId);
 

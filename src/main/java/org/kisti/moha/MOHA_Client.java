@@ -292,28 +292,12 @@ public class MOHA_Client {
 			classPathEnv.append(c.trim());
 		}
 		
-		Properties prop = new Properties();
-		/* Loading MOHA.Conf File */
-		String kafka_libs = "/usr/hdp/kafka_2.11-0.9.0.0/libs/*";
-		String kafkaVersion = "kafka_2.11-0.10.1.0";
-		String kafkaClusterId = "KafkaCluster";
-		try {
-			prop.load(new FileInputStream("conf/MOHA.conf"));
-			kafka_libs = prop.getProperty("MOHA.dependencies.kafka.libs");
-			kafkaVersion = prop.getProperty("MOHA.dependencies.kafka.version");
-			kafkaClusterId = prop.getProperty("MOHA.kafka.cluster.id");
-			System.out.println(kafka_libs);
-			System.out.println(kafkaVersion);
-			System.out.println(kafkaClusterId);
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		MOHA_Configuration mohaConf = new MOHA_Configuration("conf/MOHA.conf");
+		LOG.info(mohaConf.toString());
+		
+		
 		classPathEnv.append(File.pathSeparatorChar);
-		classPathEnv.append(kafka_libs);
+		classPathEnv.append(mohaConf.getKafkaLibsDirs());
 		classPathEnv.append(File.pathSeparatorChar);
 		classPathEnv.append(Environment.CLASSPATH.$());
 		env.put("CLASSPATH", classPathEnv.toString());
@@ -328,14 +312,19 @@ public class MOHA_Client {
 
 		Vector<CharSequence> vargs = new Vector<>();
 		vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
-
 		vargs.add(MOHA_Manager.class.getName());
+		
 		vargs.add(appId.toString());
 		vargs.add(String.valueOf(executorMemory));
-		vargs.add(String.valueOf(numExecutors));
-		vargs.add(MOHA_Properties.jdl);
+		vargs.add(String.valueOf(numExecutors));		
 		vargs.add(String.valueOf(startingTime));
-		vargs.add(kafkaClusterId);
+		
+		vargs.add(mohaConf.getKafkaVersion());
+		vargs.add(mohaConf.getKafkaClusterId());		
+		vargs.add(mohaConf.getDebugQueueName());
+		vargs.add(mohaConf.getEnableKafkaDebug());
+		vargs.add(mohaConf.getEnableMysqlLog());
+		
 		vargs.add("1><LOG_DIR>/MOHA_Manager.stdout");
 		vargs.add("2><LOG_DIR>/MOHA_Manager.stderr");
 		StringBuilder command = new StringBuilder();

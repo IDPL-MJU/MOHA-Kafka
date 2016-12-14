@@ -130,7 +130,7 @@ public class MOHA_Zookeeper {
 
 			try {
 				List<String> ids = zk.getChildren(idsDirs, false);
-				if(ids.size() > 2){
+				if(ids.size() > 0){
 					return true;
 				}
 			} catch (KeeperException | InterruptedException e) {

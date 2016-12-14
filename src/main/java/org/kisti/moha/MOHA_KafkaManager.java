@@ -216,7 +216,7 @@ public class MOHA_KafkaManager {
 		debugLogger.info("unregisterApplicationMaster");
 		amRMClient.stop();
 		debugLogger.info("stop");
-
+		
 	}
 
 	public static void main(String[] args) {

@@ -35,8 +35,12 @@ public class MOHA_Queue {
 	private Producer<String, String> producer;
 	private String queueName;
 	private String clusterId = "";
-	private String bootstrapServers = "localhost:9092";
+	//private String bootstrapServers = "localhost:9092";
+	//private String zookeeperConnect = "localhost:2181";
+	
+	private String bootstrapServers = "150.183.250.139:9092";
 	private String zookeeperConnect = "localhost:2181";
+	
 	MOHA_Zookeeper zk;
 
 	public MOHA_Queue(String queueName) {
@@ -77,6 +81,7 @@ public class MOHA_Queue {
 		zkConnection = new ZkConnection(zookeeperConnect, sessionTimeout);
 		zkUtils = new ZkUtils(zkClient, zkConnection, false);
 		AdminUtils.createTopic(zkUtils, queueName, numPartitions, numReplicationFactor, new Properties(), null);
+		
 		return true;
 
 	}

@@ -17,11 +17,20 @@ public class MOHA_Logger {
 		
 		if (isLogEnable&&isKafkaAvailable) {
 			debugQueue = new MOHA_Queue(queueName);
+			//debugQueue.create(1, 1);
 			debugQueue.register();
 		}
 		LOG.info(this.toString());
 
 	}
+	
+	public void delete(){
+		if (isLogEnable&&isKafkaAvailable) {
+			debugQueue.deleteQueue();	
+		}
+		
+	}
+	
 
 	@Override
 	public String toString() {

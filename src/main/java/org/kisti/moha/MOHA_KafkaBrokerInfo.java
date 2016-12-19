@@ -1,18 +1,17 @@
 package org.kisti.moha;
 
 public class MOHA_KafkaBrokerInfo {
-	
-	
+
 	private String brokerId;
-	private String containerId;	
+	private String containerId;
 	private String zookeeperConnect;
 	private String kafkaBinDir;
 	private int port;
 	private String hostname;
 	private MOHA_Configuration conf;
-	
+
 	public MOHA_KafkaBrokerInfo() {
-		conf = new MOHA_Configuration();
+		conf = new MOHA_Configuration(System.getenv());
 	}
 
 	public MOHA_Configuration getConf() {
@@ -24,7 +23,7 @@ public class MOHA_KafkaBrokerInfo {
 	}
 
 	private long launchedTime;
-		
+
 	public String getKafkaBinDir() {
 		return kafkaBinDir;
 	}
@@ -33,7 +32,6 @@ public class MOHA_KafkaBrokerInfo {
 		this.kafkaBinDir = "kafkaLibs/" + kafkaLibVersion;
 	}
 
-	
 	@Override
 	public String toString() {
 		return "MOHA_KafkaBrokerInfo [brokerId=" + brokerId + ", containerId=" + containerId + ", zookeeperConnect="

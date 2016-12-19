@@ -51,6 +51,62 @@ public class MOHA_Zookeeper {
 		}
 	}
 
+	public void createDir(String dir) {
+		String zDir = "/" + dir;
+		if (zk != null) {
+			Stat s;
+			try {
+				s = zk.exists(zDir, false);
+				if (s == null) {
+					LOG.info("Creating a znode for request");
+					try {
+						zk.create(zDir, new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+					} catch (KeeperException | InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			} catch (KeeperException | InterruptedException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+
+		}
+
+	}
+
+	public boolean exists(String dir) {
+		String zDir = "/" + dir;
+		if (zk != null) {
+			try {
+				if (zk.exists(zDir, false) != null)
+					return true;
+			} catch (KeeperException | InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			return false;
+		} else {
+			return false;
+		}
+	}
+
+	public void deleteDir(String dir) {
+		String zDir = "/" + dir;
+		if (zk != null) {
+			try {
+				if (zk.exists(zDir, false) != null) {
+					zk.delete(zDir, zk.exists(zDir, true).getVersion());
+				}
+				;
+			} catch (KeeperException | InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
+	}
+
 	private static void setZookeeperDir(String zookeeperDir) {
 		MOHA_Zookeeper.zookeeperDir = zookeeperDir;
 	}
@@ -130,7 +186,7 @@ public class MOHA_Zookeeper {
 
 			try {
 				List<String> ids = zk.getChildren(idsDirs, false);
-				if(ids.size() > 0){
+				if (ids.size() > 0) {
 					return true;
 				}
 			} catch (KeeperException | InterruptedException e) {
@@ -151,7 +207,7 @@ public class MOHA_Zookeeper {
 				if (zk.exists(requestDirs, false) != null) {
 					String rqInfo = new String(zk.getData(requestDirs, false, null));
 
-					LOG.info("rqInfo ------------------------- = {}", rqInfo);
+					LOG.info("requestDirs = {} rqInfo ------------------------- = {}", requestDirs, rqInfo);
 
 					return Boolean.parseBoolean(rqInfo);
 

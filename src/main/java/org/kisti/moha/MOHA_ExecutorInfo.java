@@ -1,7 +1,7 @@
 package org.kisti.moha;
 
 public class MOHA_ExecutorInfo {
-	private String appId;	
+	private String appId;
 	private String executorId;
 	private String containerId;
 	private long firstMessageTime;
@@ -13,9 +13,9 @@ public class MOHA_ExecutorInfo {
 	private long endingTime;
 	private String queueName;
 	MOHA_Configuration conf;
-	
+
 	public MOHA_ExecutorInfo() {
-		conf = new MOHA_Configuration();
+		conf = new MOHA_Configuration(System.getenv());
 	}
 
 	@Override
@@ -124,8 +124,5 @@ public class MOHA_ExecutorInfo {
 	public void setQueueName(String queueName) {
 		this.queueName = queueName;
 	}
-
-	
-
 
 }

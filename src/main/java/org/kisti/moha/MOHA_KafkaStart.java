@@ -60,163 +60,165 @@ public class MOHA_KafkaStart {
 	private String kafkaLibsPath;
 	private long startingTime;
 
-	
-	public static void main(String[] args) throws IOException {	
-		//[UPDATE] Change the flow of the main function to enable exception handling at each step
+	public static void main(String[] args) throws IOException {
+		// [UPDATE] Change the flow of the main function to enable exception
+		// handling at each step
 		/*
-		MOHA_KafkaClient client = new MOHA_KafkaClient(args);
-		
-		try {
-			boolean result = client.run();
-			LOG.info(String.valueOf(result));
-		} catch (YarnException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		*/
+		 * MOHA_KafkaClient client = new MOHA_KafkaClient(args);
+		 * 
+		 * try { boolean result = client.run();
+		 * LOG.info(String.valueOf(result)); } catch (YarnException e) { // TODO
+		 * Auto-generated catch block e.printStackTrace(); } catch (IOException
+		 * e) { // TODO Auto-generated catch block e.printStackTrace(); }
+		 */
 		MOHA_KafkaStart client;
 		boolean result = false;
-		
+
 		LOG.info("Initializing the MOHA_KafkaClient");
 
 		try {
 			client = new MOHA_KafkaStart(args);
 			result = client.init(args);
-			
-			if(!result) {
+
+			if (!result) {
 				LOG.info("Finishing the Kafka Cluster without YARN submission ...");
 				return;
 			}
-			
+
 			result = client.run();
 		} catch (IOException | ParseException | YarnException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}			
-		
-		if(result) {
+		}
+
+		if (result) {
 			LOG.info("The MOHA_KafkaClient is successfully executed");
 		}
-	}//The end of main function
+	}// The end of main function
 
-	
 	public MOHA_KafkaStart(String[] args) throws IOException {
-		//[UPDATE] Some logics are shifted into the main function
+		// [UPDATE] Some logics are shifted into the main function
 
 		yarnConf = new YarnConfiguration();
 		yarnClient = YarnClient.createYarnClient();
 		yarnClient.init(yarnConf);
 		fs = FileSystem.get(yarnConf);
-	}//The end of MOHA_KafkaClient constructor
-	
-	
+	}// The end of MOHA_KafkaClient constructor
+
 	public boolean init(String[] args) throws ParseException {
-		/* 
-		 * Add an option that only contains a short-name. It may be specified as requiring an argument.
-		   - Parameters
-		     : opt (Short single-character name of the option)
-		     : hasArg flag (signally if an argument is required after this option)
-		     : description (Self-documenting description)
-		   - Returns: the resulting Options instance
+		/*
+		 * Add an option that only contains a short-name. It may be specified as
+		 * requiring an argument. - Parameters : opt (Short single-character
+		 * name of the option) : hasArg flag (signally if an argument is
+		 * required after this option) : description (Self-documenting
+		 * description) - Returns: the resulting Options instance
 		 */
-		//[UPDATE] change the hadArg flags into "true" except for the help option
+		// [UPDATE] change the hadArg flags into "true" except for the help
+		// option
 		Options option = new Options();
 		option.addOption("appname", true, "Application name (Default: Kafka cluster builder");
 		option.addOption("priority", true, "Application Priority (Default: 0)");
-		option.addOption("queue", true,
-				"RM Queue in which this application is to be submitted (Default: default)");
-		option.addOption("manager_memory", true, 
+		option.addOption("queue", true, "RM Queue in which this application is to be submitted (Default: default)");
+		option.addOption("manager_memory", true,
 				"Amount of memory in MB to be requested to run the MOHA KafkaManager (Default: 1024)");
 		option.addOption("jar", true,
 				"JAR file containing the MOHA_KafkaManager and MOHA_KafkaBrokerLauncher (Default: MOHA.jar)");
 		option.addOption("broker_memory", true,
 				"Amount of memory in MB to be requested to run the MOHA TaskExecutor (Default: 1024)");
 		option.addOption("num_brokers", true, "Number of brokers (Default: 1)");
-		option.addOption("kafka_tgz", true, "Kafka binary package including libraries required to deploy Kakfa cluster (must specified)");		
-		option.addOption("help", false, "Print Usage of MOHA_KafkaClient"); //Add the help functionality in MOHA_KafkaClient
+		option.addOption("kafka_tgz", true,
+				"Kafka binary package including libraries required to deploy Kakfa cluster (must specified)");
+		option.addOption("help", false, "Print Usage of MOHA_KafkaClient"); // Add
+																			// the
+																			// help
+																			// functionality
+																			// in
+																			// MOHA_KafkaClient
 
 		CommandLine inputParser = new GnuParser().parse(option, args);
-		
-		//[UPDATE] Add the help functionality in MOHA_KafkaClient
+
+		// [UPDATE] Add the help functionality in MOHA_KafkaClient
 		if (inputParser.hasOption("help")) {
 			printUsage(option);
 			return false;
 		}
-		
-		//[UPDATE] Add default values for options
-		appName = inputParser.getOptionValue("appname", "KAFKA Cluster builder");
+
+		// [UPDATE] Add default values for options
+		appName = inputParser.getOptionValue("appname", "KAFKA_Cluster_Builder");
 		priority = Integer.parseInt(inputParser.getOptionValue("priority", "0"));
 		queue = inputParser.getOptionValue("queue", "default");
 		managerMemory = Integer.parseInt(inputParser.getOptionValue("manager_memory", "1024"));
 		jarPath = inputParser.getOptionValue("jar", "MOHA.jar");
 		brokerMem = Integer.parseInt(inputParser.getOptionValue("broker_memory", "1024"));
 		numBrokers = Integer.parseInt(inputParser.getOptionValue("num_brokers", "1"));
-		
-		//[UPDATE] The Job Description File is necessary to execute MOHA tasks
-		if(!inputParser.hasOption("kafka_tgz")) {
+
+		// [UPDATE] The Job Description File is necessary to execute MOHA tasks
+		if (!inputParser.hasOption("kafka_tgz")) {
 			LOG.error("Kafka binary package should be provided !");
 			return false;
 		}
 		kafkaLibsPath = inputParser.getOptionValue("kafka_tgz");
 
-		//[UPDATE] change the exception handling logic to avoid unnecessary exception throwing
+		// [UPDATE] change the exception handling logic to avoid unnecessary
+		// exception throwing
 		if (priority < 0) {
 			LOG.error("Invalid value is specified for the Application Priority");
 			return false;
-			//throw new IllegalArgumentException("Invalid value specified for Application Priority");
+			// throw new IllegalArgumentException("Invalid value specified for
+			// Application Priority");
 		}
-		
-		//[UPDATE] Unless there is a minimum memory requirement, positive values look O.K.
-		//if (managerMemory < 32) {
+
+		// [UPDATE] Unless there is a minimum memory requirement, positive
+		// values look O.K.
+		// if (managerMemory < 32) {
 		if (managerMemory <= 0) {
 			LOG.error("Invalid value is specified for the amount of memory of the MOHA KafkaManager");
 			return false;
-			//throw new IllegalArgumentException(
-			//		"Invalid value specified for amout of memory in MB to be requested to run the MOHA Manager");
+			// throw new IllegalArgumentException(
+			// "Invalid value specified for amout of memory in MB to be
+			// requested to run the MOHA Manager");
 		}
-		
-		//if (executorMemory < 32) {
+
+		// if (executorMemory < 32) {
 		if (brokerMem <= 0) {
 			LOG.error("Invalid value is specified for the amount of memory of the MOHA_KafkaBrokerLauncher");
 			return false;
-			//throw new IllegalArgumentException(
-			//		"Invalid value specified for amount of memory in MB to be requested to run the MOHA TaskExecutor");
+			// throw new IllegalArgumentException(
+			// "Invalid value specified for amount of memory in MB to be
+			// requested to run the MOHA TaskExecutor");
 		}
-		
+
 		if (numBrokers < 1) {
 			LOG.error("Invalid value is specified for the number of MOHA_KafkaBrokerLauncher");
 			return false;
-			//throw new IllegalArgumentException(
-			//		"Invalid value specified for number of MOHA TaskEcecutor to be executed");
+			// throw new IllegalArgumentException(
+			// "Invalid value specified for number of MOHA TaskEcecutor to be
+			// executed");
 		}
-		
-		LOG.info("App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, "
-				+ "num ececutors = {}, kafka_tgz path = {}", appName, priority, queue, managerMemory, jarPath, brokerMem, 
-				numBrokers, kafkaLibsPath);
+
+		LOG.info(
+				"App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, "
+						+ "num ececutors = {}, kafka_tgz path = {}",
+				appName, priority, queue, managerMemory, jarPath, brokerMem, numBrokers, kafkaLibsPath);
 
 		return true;
-	}//The end of init function
-	
-	
+	}// The end of init function
+
 	private void printUsage(Options opts) {
 		new HelpFormatter().printHelp("MOHA_KafkaClient", opts);
 	}
-	
 
 	public boolean run() throws YarnException, IOException {
-		
+
 		MOHA_Configuration mohaConf = new MOHA_Configuration("conf/MOHA.conf");
 		LOG.info(mohaConf.toString());
-		
+
 		LOG.info("yarnClient = {}", yarnClient.toString());
 		yarnClient.start();
 		YarnClientApplication yarnClientApplication = yarnClient.createApplication();
 		GetNewApplicationResponse appResponse = yarnClientApplication.getNewApplicationResponse();
 		appId = appResponse.getApplicationId();
-		
+
 		LOG.info("Application ID = {}", appId);
 		int maxMemory = appResponse.getMaximumResourceCapability().getMemory();
 		if (managerMemory > (maxMemory)) {
@@ -257,20 +259,19 @@ public class MOHA_KafkaStart {
 		String pathSuffixkafka_tgz = appName + "/" + appId.getId() + "/" + mohaConf.getKafkaVersion() + ".tgz";
 		Path kafkaDest = new Path(fs.getHomeDirectory(), pathSuffixkafka_tgz);
 		fs.copyFromLocalFile(false, true, kafkaSrc, kafkaDest);
-		
-		
+
 		FileStatus kafkaStatus = fs.getFileLinkStatus(kafkaDest);
-		
+
 		Map<String, String> env = new HashMap<>();
 		String appJarDest = dest.toUri().toString();
-		
-		env.put("AMJAR", appJarDest);
-		env.put("AMJARTIMESTAMP", Long.toString(destStatus.getModificationTime()));
-		env.put("AMJARLEN", Long.toString(destStatus.getLen()));
-		
-		env.put("KAFKALIBS", kafkaDest.toUri().toString());
-		env.put("KAFKALIBSTIMESTAMP", Long.toString(kafkaStatus.getModificationTime()));
-		env.put("KAFKALIBSLEN", Long.toString(kafkaStatus.getLen()));
+
+		env.put(MOHA_Properties.APP_JAR, appJarDest);
+		env.put(MOHA_Properties.APP_JAR_TIMESTAMP, Long.toString(destStatus.getModificationTime()));
+		env.put(MOHA_Properties.APP_JAR_SIZE, Long.toString(destStatus.getLen()));
+
+		env.put(MOHA_Properties.KAFKA_TGZ, kafkaDest.toUri().toString());
+		env.put(MOHA_Properties.KAFKA_TGZ_TIMESTAMP, Long.toString(kafkaStatus.getModificationTime()));
+		env.put(MOHA_Properties.KAFKA_TGZ_SIZE, Long.toString(kafkaStatus.getLen()));
 
 		StringBuilder classPathEnv = new StringBuilder().append(File.pathSeparatorChar).append("./app.jar");
 		for (String c : yarnConf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH,
@@ -278,13 +279,21 @@ public class MOHA_KafkaStart {
 			classPathEnv.append(File.pathSeparatorChar);
 			classPathEnv.append(c.trim());
 		}
-		
-		
+
 		classPathEnv.append(File.pathSeparatorChar);
 		classPathEnv.append(mohaConf.getKafkaLibsDirs());
 		classPathEnv.append(File.pathSeparatorChar);
 		classPathEnv.append(Environment.CLASSPATH.$());
 		env.put("CLASSPATH", classPathEnv.toString());
+
+		env.put(MOHA_Properties.KAKFA_VERSION, mohaConf.getKafkaVersion());
+		env.put(MOHA_Properties.KAFKA_CLUSTER_ID, mohaConf.getKafkaClusterId());
+		env.put(MOHA_Properties.KAFKA_DEBUG_QUEUE_NAME, mohaConf.getDebugQueueName());
+		env.put(MOHA_Properties.KAFKA_DEBUG_ENABLE, mohaConf.getKafkaDebugEnable());
+		env.put(MOHA_Properties.MYSQL_DEBUG_ENABLE, mohaConf.getMysqlLogEnable());
+		env.put(MOHA_Properties.ZOOKEEPER_CONNECT, mohaConf.getZookeeperConnect());
+		env.put(MOHA_Properties.ZOOKEEPER_BOOTSTRAP_SERVER, mohaConf.getBootstrapServers());
+
 		LOG.info("Classpath = {}", classPathEnv.toString());
 		ApplicationSubmissionContext appContext = yarnClientApplication.getApplicationSubmissionContext();
 		appContext.setApplicationName(appName);
@@ -297,21 +306,15 @@ public class MOHA_KafkaStart {
 		Vector<CharSequence> vargs = new Vector<>();
 		vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
 		vargs.add(MOHA_KafkaManager.class.getName());
-		//add parameters
+		// add parameters
 		vargs.add(appId.toString());
 		vargs.add(String.valueOf(brokerMem));
-		vargs.add(String.valueOf(numBrokers));		
+		vargs.add(String.valueOf(numBrokers));
 		vargs.add(String.valueOf(startingTime));
-		
-		vargs.add(mohaConf.getKafkaVersion());
-		vargs.add(mohaConf.getKafkaClusterId());		
-		vargs.add(mohaConf.getDebugQueueName());
-		vargs.add(mohaConf.getEnableKafkaDebug());
-		vargs.add(mohaConf.getEnableMysqlLog());		
-		
+
 		vargs.add("1><LOG_DIR>/MOHA_KafkaManager.stdout");
 		vargs.add("2><LOG_DIR>/MOHA_KafkaManager.stderr");
-		
+
 		StringBuilder command = new StringBuilder();
 		for (CharSequence str : vargs) {
 			command.append(str).append(" ");
@@ -337,6 +340,6 @@ public class MOHA_KafkaStart {
 		yarnClient.submitApplication(appContext);
 
 		return true;
-	}//The end of run function
+	}// The end of run function
 
-}//The end of MOHA_KafkaClient class
+}// The end of MOHA_KafkaClient class

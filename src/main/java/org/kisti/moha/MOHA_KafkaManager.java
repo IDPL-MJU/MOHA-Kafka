@@ -115,7 +115,7 @@ public class MOHA_KafkaManager {
 	Vector<CharSequence> statistic = new Vector<>(30);
 
 	public MOHA_KafkaManager(String[] args) throws IOException {
-		
+
 		conf = new YarnConfiguration();
 		fileSystem = FileSystem.get(conf);
 		for (String str : args) {
@@ -129,16 +129,11 @@ public class MOHA_KafkaManager {
 		getKafkaInfo().setNumBrokers(Integer.parseInt(args[2]));
 		getKafkaInfo().setStartingTime(Long.parseLong(args[3]));
 
-		getKafkaInfo().getConf().setKafkaVersion(args[4]);
-		getKafkaInfo().getConf().setKafkaClusterId(args[5]);		
-		getKafkaInfo().getConf().setDebugQueueName(args[6]);
-		getKafkaInfo().getConf().setEnableKafkaDebug(args[7]);
-		getKafkaInfo().getConf().setEnableMysqlLog(args[8]);
-
 		getKafkaInfo().setNumPartitions(getKafkaInfo().getNumBrokers());
 
-		debugLogger = new MOHA_Logger(Boolean.parseBoolean(getKafkaInfo().getConf().getEnableKafkaDebug()),getKafkaInfo().getConf().getDebugQueueName());
-		
+		debugLogger = new MOHA_Logger(Boolean.parseBoolean(getKafkaInfo().getConf().getKafkaDebugEnable()),
+				getKafkaInfo().getConf().getDebugQueueName());
+
 		LOG.info(getKafkaInfo().getConf().toString());
 		debugLogger.info(getKafkaInfo().getConf().toString());
 		debugLogger.info("MOHA_KafkaManager");
@@ -216,7 +211,7 @@ public class MOHA_KafkaManager {
 		debugLogger.info("unregisterApplicationMaster");
 		amRMClient.stop();
 		debugLogger.info("stop");
-		
+
 	}
 
 	public static void main(String[] args) {
@@ -266,12 +261,6 @@ public class MOHA_KafkaManager {
 			vargs.add(container.getId().toString());
 			vargs.add(String.valueOf(containerId));
 
-			vargs.add(getKafkaInfo().getConf().getKafkaVersion());
-			vargs.add(getKafkaInfo().getConf().getKafkaClusterId());			
-			vargs.add(getKafkaInfo().getConf().getDebugQueueName());
-			vargs.add(getKafkaInfo().getConf().getEnableKafkaDebug());
-			vargs.add(getKafkaInfo().getConf().getEnableMysqlLog());
-
 			vargs.add("1><LOG_DIR>/MOHA_KafkaBrokerLauncher.stdout");
 			vargs.add("2><LOG_DIR>/MOHA_KafkaBrokerLauncher.stderr");
 			StringBuilder command = new StringBuilder();
@@ -291,13 +280,13 @@ public class MOHA_KafkaManager {
 			appJarFile.setType(LocalResourceType.FILE);
 			appJarFile.setVisibility(LocalResourceVisibility.APPLICATION);
 			try {
-				appJarFile.setResource(ConverterUtils.getYarnUrlFromURI(new URI(env.get("AMJAR"))));
+				appJarFile.setResource(ConverterUtils.getYarnUrlFromURI(new URI(env.get(MOHA_Properties.APP_JAR))));
 			} catch (URISyntaxException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			appJarFile.setTimestamp(Long.valueOf((env.get("AMJARTIMESTAMP"))));
-			appJarFile.setSize(Long.valueOf(env.get("AMJARLEN")));
+			appJarFile.setTimestamp(Long.valueOf((env.get(MOHA_Properties.APP_JAR_TIMESTAMP))));
+			appJarFile.setSize(Long.valueOf(env.get(MOHA_Properties.APP_JAR_SIZE)));
 			localResources.put("app.jar", appJarFile);
 			LOG.info("Added {} as a local resource to the Container ", appJarFile.toString());
 
@@ -306,13 +295,13 @@ public class MOHA_KafkaManager {
 			kafkaPackage.setType(LocalResourceType.ARCHIVE);
 			kafkaPackage.setVisibility(LocalResourceVisibility.APPLICATION);
 			try {
-				kafkaPackage.setResource(ConverterUtils.getYarnUrlFromURI(new URI(env.get("KAFKALIBS"))));
+				kafkaPackage.setResource(ConverterUtils.getYarnUrlFromURI(new URI(env.get(MOHA_Properties.KAFKA_TGZ))));
 			} catch (URISyntaxException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			kafkaPackage.setTimestamp(Long.valueOf((env.get("KAFKALIBSTIMESTAMP"))));
-			kafkaPackage.setSize(Long.valueOf(env.get("KAFKALIBSLEN")));
+			kafkaPackage.setTimestamp(Long.valueOf((env.get(MOHA_Properties.KAFKA_TGZ_TIMESTAMP))));
+			kafkaPackage.setSize(Long.valueOf(env.get(MOHA_Properties.KAFKA_TGZ_SIZE)));
 			localResources.put("kafkaLibs", kafkaPackage);
 
 			LOG.info("Added {} as a local resource to the Container ", kafkaPackage.toString());
@@ -325,6 +314,8 @@ public class MOHA_KafkaManager {
 			List<String> commands = new ArrayList<>();
 			commands.add(command);
 			context.setCommands(commands);
+			LOG.info("Environment variable = {}", env);
+			LOG.info("Local resrourses = {}", localResources);
 			LOG.info("Command to execute MOHA_KafkaBrokerLauncher = {}", command);
 			nmClient.startContainerAsync(container, context);
 			LOG.info("Container {} launched!", container.getId());

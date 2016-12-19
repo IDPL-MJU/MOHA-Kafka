@@ -27,7 +27,7 @@ public class MOHA_Database {
 
 	private Connection getConnection() {
 
-		String URL = MOHA_Properties.Db;
+		String URL = MOHA_Properties.DB;
 		String username = "moha_user";
 		String password = "password";
 
@@ -75,7 +75,7 @@ public class MOHA_Database {
 		if (!isEnable)
 			return;
 
-		String sql = "insert into " + MOHA_Properties.ExecutorDb
+		String sql = "insert into " + MOHA_Properties.DB_EXECUTOR_TABLE_NAME
 				+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
 				+ eInfo.getAppId() + "\"" + ",\"" + eInfo.getExecutorId() + "\"" + ",\"" + eInfo.getContainerId() + "\""
 				+ ",\"" + eInfo.getHostname() + "\"" + ",\"" + MOHA_Common.convertLongToDate(eInfo.getLaunchedTime())
@@ -91,7 +91,7 @@ public class MOHA_Database {
 		if (!isEnable)
 			return;
 
-		String sql = "insert into " + MOHA_Properties.AppDb
+		String sql = "insert into " + MOHA_Properties.DB_APP_TABLE_NAME
 				+ "(appId, executorMemory, numExecutors, numPartitions, startingTime, initTime,makespan, numCommands, command) values (\""
 				+ appInfo.getAppId() + "\"," + appInfo.getExecutorMemory() + "," + appInfo.getNumExecutors() + ","
 				+ appInfo.getNumPartitions() + "," + "\" " + MOHA_Common.convertLongToDate(appInfo.getStartingTime())
@@ -99,8 +99,8 @@ public class MOHA_Database {
 				+ appInfo.getCommand() + "\")";
 
 		runCommand(sql);
-		sql = "update " + MOHA_Properties.ExecutorDb + " set " + " allocationTime = " + appInfo.getAllocationTime()
-				+ " where appId = \"" + appInfo.getAppId() + "\"";
+		sql = "update " + MOHA_Properties.DB_EXECUTOR_TABLE_NAME + " set " + " allocationTime = "
+				+ appInfo.getAllocationTime() + " where appId = \"" + appInfo.getAppId() + "\"";
 		runCommand(sql);
 
 	}

@@ -32,42 +32,33 @@ public class MOHA_KafkaBrokerLauncher {
 	public MOHA_KafkaBrokerLauncher(String[] args) {
 		LOG.info("Container just started on {}" + NetUtils.getHostname());
 
-		
-		
-
 		kbInfo = new MOHA_KafkaBrokerInfo();
 
 		kbInfo.setContainerId(args[0]);
 		kbInfo.setBrokerId(args[1]);
 
-		kbInfo.getConf().setKafkaVersion(args[2]);
-		kbInfo.getConf().setKafkaClusterId(args[3]);
-		kbInfo.getConf().setDebugQueueName(args[4]);
-		kbInfo.getConf().setEnableKafkaDebug(args[5]);
-		kbInfo.getConf().setEnableMysqlLog(args[6]);
-		
 		kbInfo.setKafkaBinDir(kbInfo.getConf().getKafkaVersion());
-		kbInfo.setZookeeperConnect("localhost:2181/" + kbInfo.getConf().getKafkaClusterId());
+		kbInfo.setZookeeperConnect(kbInfo.getConf().getZookeeperConnect() + "/" + kbInfo.getConf().getKafkaClusterId());
 
-		
-		debugLogger = new MOHA_Logger((Boolean.parseBoolean(kbInfo.getConf().getEnableKafkaDebug())), kbInfo.getConf().getDebugQueueName());
-		
+		debugLogger = new MOHA_Logger((Boolean.parseBoolean(kbInfo.getConf().getKafkaDebugEnable())),
+				kbInfo.getConf().getDebugQueueName());
+
 		LOG.info(debugLogger.info("Start MOHA_KafkaBrokerLauncher constructor on " + NetUtils.getHostname()));
-		LOG.info(debugLogger.info("Init Kafka broker manager =" + args.toString()));		
+		LOG.info(debugLogger.info("Init Kafka broker manager =" + args.toString()));
 		LOG.info(debugLogger.info(kbInfo.getConf().toString()));
 
 	}
 
 	public void run() throws IOException, InterruptedException, KeeperException {
 		LOG.info("It's about to start Kafka brokers");
-		
+
 		zk = new MOHA_Zookeeper(kbInfo.getConf().getKafkaClusterId());
-		if(zk==null){
+		if (zk == null) {
 			LOG.info("Zookeeper faillllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll");
 			LOG.info(kbInfo.getConf().getKafkaClusterId());
 			return;
 		}
-		
+
 		List<Integer> preIds;
 		List<Integer> brokerIds;
 
@@ -242,7 +233,7 @@ public class MOHA_KafkaBrokerLauncher {
 
 		List<String> command = new ArrayList<String>();
 		command.add(kbInfo.getKafkaBinDir() + "/bin/kafka-server-start.sh");
-		command.add(kbInfo.getKafkaBinDir() + "/config/" + MOHA_Properties.serverPros);
+		command.add(kbInfo.getKafkaBinDir() + "/config/" + MOHA_Properties.KAFKA_SERVER_PROPERTIES);
 
 		LOG.info(command.toString());
 		ProcessBuilder builder = new ProcessBuilder(command);
@@ -253,12 +244,11 @@ public class MOHA_KafkaBrokerLauncher {
 
 			p = builder.start();
 			debugLogger.info("p = builder.start();");
-			// p.waitFor();
+
 			Thread.sleep(2000);
 			debugLogger.info("p.waitFor()");
 			BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 			while ((line = br.readLine()) != null) {
-				LOG.info(line);
 				debugLogger.info(line);
 			}
 		} catch (IOException e) {
@@ -288,7 +278,8 @@ public class MOHA_KafkaBrokerLauncher {
 		try {
 
 			File serverProperties = new File(kbInfo.getKafkaBinDir() + "/config/server.properties");
-			File brokerProperties = new File(kbInfo.getKafkaBinDir() + "/config/" + MOHA_Properties.serverPros);
+			File brokerProperties = new File(
+					kbInfo.getKafkaBinDir() + "/config/" + MOHA_Properties.KAFKA_SERVER_PROPERTIES);
 			serverProperties.setWritable(true);
 			FileReader fr = new FileReader(serverProperties);
 			br = new BufferedReader(fr);
@@ -308,7 +299,7 @@ public class MOHA_KafkaBrokerLauncher {
 				}
 
 				if (line.contains("log.dirs=/tmp/kafka-logs")) {
-					line = line.replace("log.dirs=/tmp/kafka-logs", "log.dirs=" + MOHA_Properties.kafkaLogDir);
+					line = line.replace("log.dirs=/tmp/kafka-logs", "log.dirs=" + MOHA_Properties.KAFKA_LOG_DIR);
 					LOG.info("Setting log directory = {}", line);
 					debugLogger.info(line);
 				}

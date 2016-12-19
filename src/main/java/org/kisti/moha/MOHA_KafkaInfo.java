@@ -22,7 +22,7 @@ public class MOHA_KafkaInfo {
 	private MOHA_Configuration conf;
 
 	public MOHA_KafkaInfo() {
-		setConf(new MOHA_Configuration());
+		setConf(new MOHA_Configuration(System.getenv()));
 	}
 
 	public long getAllocationTime() {

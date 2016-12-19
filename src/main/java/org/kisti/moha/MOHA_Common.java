@@ -19,7 +19,6 @@ public class MOHA_Common {
 		return dateFormat;
 	}
 
-
 	public static long convertDateToLong(String dateTime) {
 		long timeMillis = 0;
 

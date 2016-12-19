@@ -17,7 +17,9 @@ import java.util.TimeZone;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment;
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse;
@@ -39,6 +41,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
+import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -126,7 +129,6 @@ public class MOHA_Manager {
 		for (String str : args) {
 			LOG.info(str);
 		}
-		
 
 		setAppInfo(new MOHA_Info());
 		getAppInfo().setAppId(args[0]);
@@ -135,12 +137,6 @@ public class MOHA_Manager {
 		getAppInfo().setNumPartitions(getAppInfo().getNumExecutors());
 		getAppInfo().setStartingTime(Long.parseLong(args[3]));
 
-		getAppInfo().getConf().setKafkaVersion(args[4]);
-		getAppInfo().getConf().setKafkaClusterId(args[5]);
-		getAppInfo().getConf().setDebugQueueName(args[6]);
-		getAppInfo().getConf().setEnableKafkaDebug(args[7]);
-		getAppInfo().getConf().setEnableMysqlLog(args[8]);
-
 		LOG.info(getAppInfo().toString());
 
 		getAppInfo().setQueueName(getAppInfo().getAppId());
@@ -148,18 +144,30 @@ public class MOHA_Manager {
 		String ipAddress = InetAddress.getLocalHost().getHostAddress();
 		LOG.info("Host idAdress = {}", ipAddress);
 
-		debugLogger = new MOHA_Logger(Boolean.parseBoolean(getAppInfo().getConf().getEnableKafkaDebug()),
+		debugLogger = new MOHA_Logger(Boolean.parseBoolean(getAppInfo().getConf().getKafkaDebugEnable()),
 				getAppInfo().getConf().getDebugQueueName());
-		db = new MOHA_Database(Boolean.parseBoolean(getAppInfo().getConf().getEnableMysqlLog()));
+		db = new MOHA_Database(Boolean.parseBoolean(getAppInfo().getConf().getMysqlLogEnable()));
 		debugLogger.info("init queue");
 		initQueue();
+
+		LOG.info("Environment variable = {}", getAppInfo().getConf().toString());
 
 	}
 
 	private void initQueue() {
 		long startManager = System.currentTimeMillis();
+		String zookeeperDir = getAppInfo().getConf().getKafkaClusterId();
+		MOHA_Zookeeper zk = new MOHA_Zookeeper(zookeeperDir);
+		String zookeeperConnect = System.getenv(MOHA_Properties.ZOOKEEPER_CONNECT);
+		String bootstrapServer = "localhost:9092";
+		try {
+			bootstrapServer = zk.getBootstrapServers();
+		} catch (IOException | InterruptedException | KeeperException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
 
-		queue = new MOHA_Queue(getAppInfo().getConf().getKafkaClusterId(), getAppInfo().getQueueName());
+		queue = new MOHA_Queue(zookeeperConnect, bootstrapServer, getAppInfo().getQueueName());
 		debugLogger.info("MOHA_Queue");
 		queue.create(getAppInfo().getNumPartitions(), 1);
 		debugLogger.info("queue.create");
@@ -170,7 +178,7 @@ public class MOHA_Manager {
 		// put messages to the queue
 		FileReader fileReader;
 		try {
-			fileReader = new FileReader(MOHA_Properties.jdl);
+			fileReader = new FileReader(MOHA_Properties.JDL);
 			BufferedReader buff = new BufferedReader(fileReader);
 			getAppInfo().setNumCommands(Integer.parseInt(buff.readLine()));
 			getAppInfo().setCommand(buff.readLine());
@@ -240,6 +248,9 @@ public class MOHA_Manager {
 		LOG.info(debugLogger.info("The number of completed Containers = " + this.numCompletedContainers.get()));
 		LOG.info(debugLogger.info("Containers have all completed, so shutting down NMClient and AMRMClient ..."));
 
+		MOHA_Zookeeper zks = new MOHA_Zookeeper(null);
+		zks.deleteDir(getAppInfo().getAppId());
+
 		getAppInfo().setMakespan(System.currentTimeMillis() - getAppInfo().getStartingTime());
 		db.insertAppInfoToDababase(getAppInfo());
 		nmClient.stop();
@@ -292,18 +303,12 @@ public class MOHA_Manager {
 			Vector<CharSequence> vargs = new Vector<>(30);
 			vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
 			vargs.add(MOHA_TaskExecutor.class.getName());
-			
-			//add parameters
+
+			// add parameters
 			vargs.add(getAppInfo().getAppId());
 			vargs.add(container.getId().toString());
 			vargs.add(String.valueOf(id));
-			
-			vargs.add(getAppInfo().getConf().getKafkaVersion());
-			vargs.add(getAppInfo().getConf().getKafkaClusterId());			
-			vargs.add(getAppInfo().getConf().getDebugQueueName());
-			vargs.add(getAppInfo().getConf().getEnableKafkaDebug());
-			vargs.add(getAppInfo().getConf().getEnableMysqlLog());
-			
+
 			vargs.add("1><LOG_DIR>/MOHA_TaskExecutor.stdout");
 			vargs.add("2><LOG_DIR>/MOHA_TaskExecutor.stderr");
 			StringBuilder command = new StringBuilder();
@@ -323,15 +328,16 @@ public class MOHA_Manager {
 			appJarFile.setType(LocalResourceType.FILE);
 			appJarFile.setVisibility(LocalResourceVisibility.APPLICATION);
 			try {
-				appJarFile.setResource(ConverterUtils.getYarnUrlFromURI(new URI(env.get("AMJAR"))));
+				appJarFile.setResource(ConverterUtils.getYarnUrlFromURI(new URI(env.get(MOHA_Properties.APP_JAR))));
 			} catch (URISyntaxException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			appJarFile.setTimestamp(Long.valueOf((env.get("AMJARTIMESTAMP"))));
-			appJarFile.setSize(Long.valueOf(env.get("AMJARLEN")));
+			appJarFile.setTimestamp(Long.valueOf((env.get(MOHA_Properties.APP_JAR_TIMESTAMP))));
+			appJarFile.setSize(Long.valueOf(env.get(MOHA_Properties.APP_JAR_SIZE)));
 			localResources.put("app.jar", appJarFile);
 			LOG.info("Added {} as a local resource to the Container ", appJarFile.toString());
+
 			ContainerLaunchContext context = Records.newRecord(ContainerLaunchContext.class);
 			context.setEnvironment(env);
 			context.setLocalResources(localResources);

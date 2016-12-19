@@ -19,6 +19,8 @@ import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationResponse;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -60,107 +62,96 @@ public class MOHA_Client {
 	private String jdlPath;
 	private long startingTime;
 
-	
-	public static void main(String[] args) throws IOException {	
-		//[UPDATE] Change the flow of the main function to enable exception handling at each step
+	public static void main(String[] args) throws IOException {
+		// [UPDATE] Change the flow of the main function to enable exception
+		// handling at each step
 		/*
-		MOHA_Client client = new MOHA_Client(args);
-		
-		try {
-			boolean result = client.run();
-			LOG.info(String.valueOf(result));
-		} catch (YarnException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		*/
+		 * MOHA_Client client = new MOHA_Client(args);
+		 * 
+		 * try { boolean result = client.run();
+		 * LOG.info(String.valueOf(result)); } catch (YarnException e) { // TODO
+		 * Auto-generated catch block e.printStackTrace(); } catch (IOException
+		 * e) { // TODO Auto-generated catch block e.printStackTrace(); }
+		 */
 		MOHA_Client client;
 		boolean result = false;
-		
+
 		LOG.info("Initializing the MOHA_Client");
 
 		try {
 			client = new MOHA_Client(args);
 			result = client.init(args);
-			
-			if(!result) {
+
+			if (!result) {
 				LOG.info("Finishing the MOHA execution without YARN submission ...");
 				return;
 			}
-			
+
 			result = client.run();
 		} catch (IOException | ParseException | YarnException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}			
-		
-		if(result) {
+		}
+
+		if (result) {
 			LOG.info("The MOHA_Client is successfully executed");
 		}
-	}//The end of main function
+	}// The end of main function
 
-	
 	public MOHA_Client(String[] args) throws IOException {
-		//[UPDATE] Some logics are shifted into the main function
+		// [UPDATE] Some logics are shifted into the main function
 		/*
-		try {
-			LOG.info("Start init MOHA_Client");
-			startingTime = System.currentTimeMillis();
-			init(args);
-			LOG.info("Successfully init");
-			conf = new YarnConfiguration();
-			yarnClient = YarnClient.createYarnClient();
-			yarnClient.init(conf);
-			fs = FileSystem.get(conf);
-		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		*/
+		 * try { LOG.info("Start init MOHA_Client"); startingTime =
+		 * System.currentTimeMillis(); init(args);
+		 * LOG.info("Successfully init"); conf = new YarnConfiguration();
+		 * yarnClient = YarnClient.createYarnClient(); yarnClient.init(conf); fs
+		 * = FileSystem.get(conf); } catch (ParseException e) { // TODO
+		 * Auto-generated catch block e.printStackTrace(); }
+		 */
 		conf = new YarnConfiguration();
 		yarnClient = YarnClient.createYarnClient();
 		yarnClient.init(conf);
 		fs = FileSystem.get(conf);
-	}//The end of MOHA_Client constructor
-	
-	
+	}// The end of MOHA_Client constructor
+
 	public boolean init(String[] args) throws ParseException {
-		/* 
-		 * Add an option that only contains a short-name. It may be specified as requiring an argument.
-		   - Parameters
-		     : opt (Short single-character name of the option)
-		     : hasArg flag (signally if an argument is required after this option)
-		     : description (Self-documenting description)
-		   - Returns: the resulting Options instance
+		/*
+		 * Add an option that only contains a short-name. It may be specified as
+		 * requiring an argument. - Parameters : opt (Short single-character
+		 * name of the option) : hasArg flag (signally if an argument is
+		 * required after this option) : description (Self-documenting
+		 * description) - Returns: the resulting Options instance
 		 */
-		//[UPDATE] change the hadArg flags into "true" except for the help option
+		// [UPDATE] change the hadArg flags into "true" except for the help
+		// option
 		Options option = new Options();
 		option.addOption("appname", true, "MOHA Application Name (Default: MOHA)");
 		option.addOption("priority", true, "Application Priority (Default: 0)");
-		option.addOption("queue", true,
-				"RM Queue in which this application is to be submitted (Default: default)");
-		option.addOption("manager_memory", true, 
+		option.addOption("queue", true, "RM Queue in which this application is to be submitted (Default: default)");
+		option.addOption("manager_memory", true,
 				"Amount of memory in MB to be requested to run the MOHA Manager (Default: 1024)");
-		option.addOption("jar", true,
-				"JAR file containing the MOHA Manager and Task Executor (Default: MOHA.jar)");
+		option.addOption("jar", true, "JAR file containing the MOHA Manager and Task Executor (Default: MOHA.jar)");
 		option.addOption("executor_memory", true,
 				"Amount of memory in MB to be requested to run the MOHA TaskExecutor (Default: 1024)");
 		option.addOption("num_executors", true, "Number of MOHA Task Executors (Default: 1)");
-		option.addOption("JDL", true, "Job Description Language file that contains the MOHA job specification (must specified)");		
-		option.addOption("help", false, "Print Usage of MOHA_Client"); //Add the help functionality in MOHA_Client
+		option.addOption("JDL", true,
+				"Job Description Language file that contains the MOHA job specification (must specified)");
+		option.addOption("help", false, "Print Usage of MOHA_Client"); // Add
+																		// the
+																		// help
+																		// functionality
+																		// in
+																		// MOHA_Client
 
 		CommandLine inputParser = new GnuParser().parse(option, args);
-		
-		//[UPDATE] Add the help functionality in MOHA_Client
+
+		// [UPDATE] Add the help functionality in MOHA_Client
 		if (inputParser.hasOption("help")) {
 			printUsage(option);
 			return false;
 		}
-		
-		//[UPDATE] Add default values for options
+
+		// [UPDATE] Add default values for options
 		appName = inputParser.getOptionValue("appname", "MOHA");
 		priority = Integer.parseInt(inputParser.getOptionValue("priority", "0"));
 		queue = inputParser.getOptionValue("queue", "default");
@@ -168,57 +159,62 @@ public class MOHA_Client {
 		jarPath = inputParser.getOptionValue("jar", "MOHA.jar");
 		executorMemory = Integer.parseInt(inputParser.getOptionValue("executor_memory", "1024"));
 		numExecutors = Integer.parseInt(inputParser.getOptionValue("num_executors", "1"));
-		
-		//[UPDATE] The Job Description File is necessary to execute MOHA tasks
-		if(!inputParser.hasOption("JDL")) {
+
+		// [UPDATE] The Job Description File is necessary to execute MOHA tasks
+		if (!inputParser.hasOption("JDL")) {
 			LOG.error("The Job Description File should be provided !");
 			return false;
 		}
 		jdlPath = inputParser.getOptionValue("JDL");
 
-		//[UPDATE] change the exception handling logic to avoid unnecessary exception throwing
+		// [UPDATE] change the exception handling logic to avoid unnecessary
+		// exception throwing
 		if (priority < 0) {
 			LOG.error("Invalid value is specified for the Application Priority");
 			return false;
-			//throw new IllegalArgumentException("Invalid value specified for Application Priority");
+			// throw new IllegalArgumentException("Invalid value specified for
+			// Application Priority");
 		}
-		
-		//[UPDATE] Unless there is a minimum memory requirement, positive values look O.K.
-		//if (managerMemory < 32) {
+
+		// [UPDATE] Unless there is a minimum memory requirement, positive
+		// values look O.K.
+		// if (managerMemory < 32) {
 		if (managerMemory <= 0) {
 			LOG.error("Invalid value is specified for the amount of memory of the MOHA Manager");
 			return false;
-			//throw new IllegalArgumentException(
-			//		"Invalid value specified for amout of memory in MB to be requested to run the MOHA Manager");
+			// throw new IllegalArgumentException(
+			// "Invalid value specified for amout of memory in MB to be
+			// requested to run the MOHA Manager");
 		}
-		
-		//if (executorMemory < 32) {
+
+		// if (executorMemory < 32) {
 		if (executorMemory <= 0) {
 			LOG.error("Invalid value is specified for the amount of memory of the MOHA TaskExecutor");
 			return false;
-			//throw new IllegalArgumentException(
-			//		"Invalid value specified for amount of memory in MB to be requested to run the MOHA TaskExecutor");
+			// throw new IllegalArgumentException(
+			// "Invalid value specified for amount of memory in MB to be
+			// requested to run the MOHA TaskExecutor");
 		}
-		
+
 		if (numExecutors < 1) {
 			LOG.error("Invalid value is specified for the number of MOHA TaskExecutors");
 			return false;
-			//throw new IllegalArgumentException(
-			//		"Invalid value specified for number of MOHA TaskEcecutor to be executed");
+			// throw new IllegalArgumentException(
+			// "Invalid value specified for number of MOHA TaskEcecutor to be
+			// executed");
 		}
-		
-		LOG.info("App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, "
-				+ "num ececutors = {}, jdl path = {}", appName, priority, queue, managerMemory, jarPath, executorMemory, 
-				numExecutors, jdlPath);
+
+		LOG.info(
+				"App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, "
+						+ "num ececutors = {}, jdl path = {}",
+				appName, priority, queue, managerMemory, jarPath, executorMemory, numExecutors, jdlPath);
 
 		return true;
-	}//The end of init function
-	
-	
+	}// The end of init function
+
 	private void printUsage(Options opts) {
 		new HelpFormatter().printHelp("MOHA_Client", opts);
 	}
-	
 
 	public boolean run() throws YarnException, IOException {
 		LOG.info("yarnClient = {}", yarnClient.toString());
@@ -226,7 +222,7 @@ public class MOHA_Client {
 		YarnClientApplication yarnClientApplication = yarnClient.createApplication();
 		GetNewApplicationResponse appResponse = yarnClientApplication.getNewApplicationResponse();
 		appId = appResponse.getApplicationId();
-		
+
 		LOG.info("Application ID = {}", appId);
 		int maxMemory = appResponse.getMaximumResourceCapability().getMemory();
 		if (managerMemory > (maxMemory)) {
@@ -247,16 +243,18 @@ public class MOHA_Client {
 			LOG.info("name = {}, capacity = {}, maximum capacity of each queue = {}", queues.getQueueName(),
 					queues.getCapacity(), queues.getMaximumCapacity());
 		}
-		Path src = new Path(this.jarPath);
-		String pathSuffix = appName + "/" + appId.getId() + "/app.jar";
-		Path dest = new Path(fs.getHomeDirectory(), pathSuffix);
-		fs.copyFromLocalFile(false, true, src, dest);
-		FileStatus destStatus = fs.getFileStatus(dest);
+		Path jarSrc = new Path(this.jarPath);
+		String rootDir = appName + "/" + appId.getId();
+		String jarPathSuffix = rootDir + "/app.jar";
+		Path jarDest = new Path(fs.getHomeDirectory(), jarPathSuffix);
+		fs.copyFromLocalFile(false, true, jarSrc, jarDest);
+
+		FileStatus jarDestStatus = fs.getFileStatus(jarDest);
 
 		LocalResource jarResource = Records.newRecord(LocalResource.class);
-		jarResource.setResource(ConverterUtils.getYarnUrlFromPath(dest));
-		jarResource.setSize(destStatus.getLen());
-		jarResource.setTimestamp(destStatus.getModificationTime());
+		jarResource.setResource(ConverterUtils.getYarnUrlFromPath(jarDest));
+		jarResource.setSize(jarDestStatus.getLen());
+		jarResource.setTimestamp(jarDestStatus.getModificationTime());
 		jarResource.setType(LocalResourceType.FILE);
 		jarResource.setVisibility(LocalResourceVisibility.APPLICATION);
 		Map<String, LocalResource> localResources = new HashMap<>();
@@ -264,26 +262,30 @@ public class MOHA_Client {
 		LOG.info("Jar resource = {}", jarResource.toString());
 
 		Path jdlsrc = new Path(this.jdlPath);
-		String pathSuffixJdl = appName + "/" + appId.getId() + "/" + MOHA_Properties.jdl;
-		Path destJdl = new Path(fs.getHomeDirectory(), pathSuffixJdl);
-		fs.copyFromLocalFile(false, true, jdlsrc, destJdl);
-		FileStatus jdlStatus = fs.getFileLinkStatus(destJdl);
+		String jdlPathSuffix = rootDir + "/" + MOHA_Properties.JDL;
+		Path jdlDest = new Path(fs.getHomeDirectory(), jdlPathSuffix);
+		fs.copyFromLocalFile(false, true, jdlsrc, jdlDest);
+
+		FileStatus jdlStatus = fs.getFileLinkStatus(jdlDest);
+
 		LocalResource jdlResource = Records.newRecord(LocalResource.class);
-		jdlResource.setResource(ConverterUtils.getYarnUrlFromPath(destJdl));
+		jdlResource.setResource(ConverterUtils.getYarnUrlFromPath(jdlDest));
 		jdlResource.setSize(jdlStatus.getLen());
 		jdlResource.setTimestamp(jdlStatus.getModificationTime());
 		jdlResource.setType(LocalResourceType.FILE);
 		jdlResource.setVisibility(LocalResourceVisibility.APPLICATION);
 
-		localResources.put(MOHA_Properties.jdl, jdlResource);
+		localResources.put(MOHA_Properties.JDL, jdlResource);
 		LOG.info("Jdl resource = {}", jdlResource.toString());
 
+		MOHA_Configuration mohaConf = new MOHA_Configuration("conf/MOHA.conf");
+		LOG.info("Configuration file = {}", mohaConf.toString());
+
 		Map<String, String> env = new HashMap<>();
-		String appJarDest = dest.toUri().toString();
-		env.put("AMJAR", appJarDest);
-		LOG.info("AMJAR environment variable is set to {}", appJarDest);
-		env.put("AMJARTIMESTAMP", Long.toString(destStatus.getModificationTime()));
-		env.put("AMJARLEN", Long.toString(destStatus.getLen()));
+
+		env.put(MOHA_Properties.APP_JAR, jarDest.toUri().toString());
+		env.put(MOHA_Properties.APP_JAR_TIMESTAMP, Long.toString(jarDestStatus.getModificationTime()));
+		env.put(MOHA_Properties.APP_JAR_SIZE, Long.toString(jarDestStatus.getLen()));
 
 		StringBuilder classPathEnv = new StringBuilder().append(File.pathSeparatorChar).append("./app.jar");
 		for (String c : conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH,
@@ -291,40 +293,38 @@ public class MOHA_Client {
 			classPathEnv.append(File.pathSeparatorChar);
 			classPathEnv.append(c.trim());
 		}
-		
-		MOHA_Configuration mohaConf = new MOHA_Configuration("conf/MOHA.conf");
-		LOG.info(mohaConf.toString());
-		
-		
+
 		classPathEnv.append(File.pathSeparatorChar);
 		classPathEnv.append(mohaConf.getKafkaLibsDirs());
 		classPathEnv.append(File.pathSeparatorChar);
 		classPathEnv.append(Environment.CLASSPATH.$());
+
 		env.put("CLASSPATH", classPathEnv.toString());
-		LOG.info("Classpath = {}", classPathEnv.toString());
+
+		env.put(MOHA_Properties.KAKFA_VERSION, mohaConf.getKafkaVersion());
+		env.put(MOHA_Properties.KAFKA_CLUSTER_ID, mohaConf.getKafkaClusterId());
+		env.put(MOHA_Properties.KAFKA_DEBUG_QUEUE_NAME, mohaConf.getDebugQueueName());
+		env.put(MOHA_Properties.KAFKA_DEBUG_ENABLE, mohaConf.getKafkaDebugEnable());
+		env.put(MOHA_Properties.MYSQL_DEBUG_ENABLE, mohaConf.getMysqlLogEnable());
+		env.put(MOHA_Properties.ZOOKEEPER_CONNECT, mohaConf.getZookeeperConnect());
+		env.put(MOHA_Properties.ZOOKEEPER_BOOTSTRAP_SERVER, mohaConf.getBootstrapServers());
+
 		ApplicationSubmissionContext appContext = yarnClientApplication.getApplicationSubmissionContext();
 		appContext.setApplicationName(appName);
 
-		ContainerLaunchContext mhmContainer = Records.newRecord(ContainerLaunchContext.class);
+		ContainerLaunchContext managerContainer = Records.newRecord(ContainerLaunchContext.class);
 		LOG.info("Local resources = {}", localResources.toString());
-		mhmContainer.setLocalResources(localResources);
-		mhmContainer.setEnvironment(env);
-
+		managerContainer.setLocalResources(localResources);
+		managerContainer.setEnvironment(env);
+		LOG.info("Environment variables = {}", env.toString());
 		Vector<CharSequence> vargs = new Vector<>();
 		vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
 		vargs.add(MOHA_Manager.class.getName());
-		
 		vargs.add(appId.toString());
 		vargs.add(String.valueOf(executorMemory));
-		vargs.add(String.valueOf(numExecutors));		
+		vargs.add(String.valueOf(numExecutors));
 		vargs.add(String.valueOf(startingTime));
-		
-		vargs.add(mohaConf.getKafkaVersion());
-		vargs.add(mohaConf.getKafkaClusterId());		
-		vargs.add(mohaConf.getDebugQueueName());
-		vargs.add(mohaConf.getEnableKafkaDebug());
-		vargs.add(mohaConf.getEnableMysqlLog());
-		
+
 		vargs.add("1><LOG_DIR>/MOHA_Manager.stdout");
 		vargs.add("2><LOG_DIR>/MOHA_Manager.stderr");
 		StringBuilder command = new StringBuilder();
@@ -336,22 +336,37 @@ public class MOHA_Client {
 
 		LOG.info("Command to execute MOHA Manager = {}", command);
 
-		mhmContainer.setCommands(commands);
+		managerContainer.setCommands(commands);
 
 		Resource capability = Records.newRecord(Resource.class);
 		capability.setMemory(managerMemory);
 		appContext.setResource(capability);
-		appContext.setAMContainerSpec(mhmContainer);
+		appContext.setAMContainerSpec(managerContainer);
 
 		Priority pri = Records.newRecord(Priority.class);
 		pri.setPriority(priority);
 		appContext.setPriority(pri);
 		appContext.setQueue(queue);
 
-		LOG.info("MOHA Manager Container = {}", mhmContainer.toString());
-		yarnClient.submitApplication(appContext);
-
+		LOG.info("MOHA Manager Container = {}", managerContainer.toString());
+		ApplicationId appId = yarnClient.submitApplication(appContext);
+		LOG.info("AppID = {}", appId.toString());
+		MOHA_Zookeeper zks = new MOHA_Zookeeper(null);
+		zks.createDir(appId.toString());
+		while (zks.exists(appId.toString())) {
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		;
+		LOG.info("Deleting root directory which contains jar file and jdl file on hdfs : {}", rootDir);
+		fs.delete(new Path(rootDir), true);
+		fs.close();
+		LOG.info("Application successfully finish");
 		return true;
-	}//The end of run function
+	}// The end of run function
 
-}//The end of MOHA_Client class
+}// The end of MOHA_Client class

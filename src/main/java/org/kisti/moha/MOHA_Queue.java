@@ -2,6 +2,7 @@ package org.kisti.moha;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Properties;
 
 import org.I0Itec.zkclient.ZkClient;
@@ -21,7 +22,6 @@ import kafka.utils.ZkUtils;
 import kafka.utils.ZkUtils$;
 
 public class MOHA_Queue {
-	
 
 	private static final Logger LOG = LoggerFactory.getLogger(MOHA_Queue.class);
 
@@ -33,45 +33,24 @@ public class MOHA_Queue {
 	private ZkUtils zkUtils;
 	private KafkaConsumer<String, String> consumer;
 	private Producer<String, String> producer;
+
 	private String queueName;
-	private String clusterId = "";
-	//private String bootstrapServers = "localhost:9092";
-	//private String zookeeperConnect = "localhost:2181";
-	
-	private String bootstrapServers = "150.183.250.139:9092";
-	private String zookeeperConnect = "localhost:2181";
-	
-	MOHA_Zookeeper zk;
+	private String bootstrapServers;
+	private String zookeeperConnect;
 
-	public MOHA_Queue(String queueName) {
+	public MOHA_Queue(String zookeeperConnect, String bootstrapServers, String queueName) {
+		this.zookeeperConnect = zookeeperConnect;
+		this.bootstrapServers = bootstrapServers;
 		this.queueName = queueName;
 		LOG.info(this.toString());
 	}
 
-	public MOHA_Queue(String clusterId, String queueName) {
-		this.queueName = queueName;
-		this.clusterId = clusterId;
-		init();
-		LOG.info(this.toString());
-	}
 	@Override
 	public String toString() {
 		return "MOHA_Queue [sessionTimeout=" + sessionTimeout + ", connectionTimeout=" + connectionTimeout
 				+ ", zkClient=" + zkClient + ", zkConnection=" + zkConnection + ", zkUtils=" + zkUtils + ", consumer="
-				+ consumer + ", producer=" + producer + ", queueName=" + queueName + ", clusterId=" + clusterId
-				+ ", bootstrapServers=" + bootstrapServers + ", zookeeperConnect=" + zookeeperConnect + ", zk=" + zk
-				+ "]";
-	}
-	private void init() {
-		zk = new MOHA_Zookeeper(clusterId);
-
-		try {
-			bootstrapServers = zk.getBootstrapServers();
-		} catch (IOException | InterruptedException | KeeperException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		zookeeperConnect = "localhost:2181/" + clusterId;
+				+ consumer + ", producer=" + producer + ", queueName=" + queueName + ", bootstrapServers="
+				+ bootstrapServers + ", zookeeperConnect=" + zookeeperConnect + "]";
 	}
 
 	// Create queue
@@ -81,7 +60,7 @@ public class MOHA_Queue {
 		zkConnection = new ZkConnection(zookeeperConnect, sessionTimeout);
 		zkUtils = new ZkUtils(zkClient, zkConnection, false);
 		AdminUtils.createTopic(zkUtils, queueName, numPartitions, numReplicationFactor, new Properties(), null);
-		
+
 		return true;
 
 	}
@@ -112,7 +91,7 @@ public class MOHA_Queue {
 
 	public boolean unregister() {
 		producer.close();
-		zk.close();
+
 		return true;
 	}
 
@@ -141,7 +120,7 @@ public class MOHA_Queue {
 		// "org.apache.kafka.common.serialization.StringDeserializer");
 
 		props.put("bootstrap.servers", bootstrapServers);
-		props.put("group.id",queueName);
+		props.put("group.id", queueName);
 		props.put("enable.auto.commit", "false");
 		props.put("auto.commit.interval.ms", "1000");
 		props.put("session.timeout.ms", "10000");
@@ -150,7 +129,7 @@ public class MOHA_Queue {
 		props.put("auto.offset.reset", "earliest");
 		props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 		props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-		
+
 		consumer = new KafkaConsumer<>(props);
 
 		consumer.subscribe(Arrays.asList(queueName));
@@ -160,7 +139,7 @@ public class MOHA_Queue {
 
 	public boolean close() {
 		consumer.close();
-		zk.close();
+
 		return true;
 	}
 

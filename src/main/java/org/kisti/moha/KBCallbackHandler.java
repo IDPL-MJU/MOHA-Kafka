@@ -23,7 +23,7 @@ public class KBCallbackHandler implements NMClientAsync.CallbackHandler {
 	public KBCallbackHandler(MOHA_KafkaManager applicationMaster) {
 		this.mohaManager = applicationMaster;
 		debugLogger = new MOHA_Logger(
-				Boolean.parseBoolean(applicationMaster.getKafkaInfo().getConf().getEnableKafkaDebug()),
+				Boolean.parseBoolean(applicationMaster.getKafkaInfo().getConf().getKafkaDebugEnable()),
 				applicationMaster.getKafkaInfo().getConf().getDebugQueueName());
 
 		LOG.info(debugLogger.info("nmClient.start(); ..."));

@@ -145,7 +145,7 @@ public class MOHA_TaskExecutor {
 				info.setEndingTime(System.currentTimeMillis());
 				expiredTime = System.currentTimeMillis() + EXTENDED_SESSION_TIME;
 			} else if ((retries > 0) && found) {
-				LOG.info(debugLogger.info("Executor [" + info.getExecutorId() + "[ : Re-poll messages"));
+				LOG.info(debugLogger.info("Executor [" + info.getExecutorId() + "]: Re-poll messages"));
 				// inQueue.subcribe();
 				try {
 					Thread.sleep(5000);

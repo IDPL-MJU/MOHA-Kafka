@@ -145,7 +145,7 @@ public class MOHA_TaskExecutor {
 				info.setEndingTime(System.currentTimeMillis());
 				expiredTime = System.currentTimeMillis() + EXTENDED_SESSION_TIME;
 			} else if ((retries > 0) && found) {
-				LOG.info(debugLogger.info("Executor [" + info.getExecutorId() + "]: Re-poll messages"));
+				LOG.info(debugLogger.info("TaskExecutor[" + info.getExecutorId() + "]: Re-poll messages"));
 				// inQueue.subcribe();
 				try {
 					Thread.sleep(5000);
@@ -159,7 +159,7 @@ public class MOHA_TaskExecutor {
 			}
 
 		}
-		LOG.info(debugLogger.info("TaskExecutor [" + info.getExecutorId() + "] : There are  " + numComand
+		LOG.info(debugLogger.info("TaskExecutor[" + info.getExecutorId() + "] : There are  " + numComand
 				+ " (commands) have been executed" + "  SleepTime: " + pollingTime));
 		long executingTime = info.getEndingTime() - info.getFirstMessageTime();
 		info.setRunningTime(executingTime);
@@ -169,7 +169,7 @@ public class MOHA_TaskExecutor {
 		data.insertExecutorInfoToDatabase(info);
 
 		inQueue.close();
-		LOG.info(debugLogger.info("Executor [" + info.getExecutorId() + "] is ending ..."));
+		LOG.info(debugLogger.info("TaskExecutor[" + info.getExecutorId() + "] is ending ..."));
 	}
 
 }

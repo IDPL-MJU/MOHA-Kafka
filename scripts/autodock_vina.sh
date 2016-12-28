@@ -45,7 +45,7 @@ chmod +x ./vina
 mkdir -p $result_dir
 
 echo "# Drug Repositioning Simulation starts: $ligand_name + $protein_name"
-for p in $protein_name/*.pdbqt; do
+for p in $protein_folder/*.pdbqt; do
 	echo "# docking of protein $p"
 	output="$ligand_name+$protein_name+`basename $p .pdbqt`"
 

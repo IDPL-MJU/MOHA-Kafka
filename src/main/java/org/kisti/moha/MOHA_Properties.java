@@ -13,12 +13,39 @@ public interface MOHA_Properties {
 	public static final String KAFKA_DEBUG_QUEUE_NAME = "KAFKA_DEBUG_QUEUE_NAME";
 	public static final String KAFKA_DEBUG_ENABLE = "KAFKA_DEBUG_ENABLE";
 	public static final String MYSQL_DEBUG_ENABLE = "MYSQL_DEBUG_ENABLE";
-	public static final String ZOOKEEPER_BOOTSTRAP_SERVER = "ZOOKEEPER_BOOTSTRAP_SERVER";
-	public static final String ZOOKEEPER_CONNECT = "ZOOKEEPER_CONNECT";
+	public static final String CONF_ZOOKEEPER_BOOTSTRAP_SERVER = "ZOOKEEPER_BOOTSTRAP_SERVER";
+	public static final String CONF_ZOOKEEPER_CONNECT = "ZOOKEEPER_CONNECT";
+	public static final String KAFKA_ZOOKEEPER_BOOTSTRAP_SERVER = "KAFKA_ZOOKEEPER_BOOTSTRAP_SERVER";
+	public static final String KAFKA_ZOOKEEPER_CONNECT = "KAFKA_ZOOKEEPER_CONNECT";
 	public static final String APP_JAR = "APP_JAR";
 	public static final String APP_JAR_TIMESTAMP = "APP_JAR_TIMESTAMP";
 	public static final String APP_JAR_SIZE = "APP_JAR_SIZE";
 	public static final String KAFKA_TGZ = "KAFKA_TGZ";
 	public static final String KAFKA_TGZ_TIMESTAMP = "KAFKA_TGZ_TIMESTAMP";
 	public static final String KAFKA_TGZ_SIZE = "KAFKA_TGZ_SIZE";
+
+	public static final String MOHA_TGZ = "KAFKA_TGZ";
+	public static final String MOHA_TGZ_TIMESTAMP = "KAFKA_TGZ_TIMESTAMP";
+	public static final String MOHA_TGZ_SIZE = "KAFKA_TGZ_SIZE";
+	
+	
+	public static final String ZOOKEEPER_ROOT_KAFKA = "kafka_cluster";
+	public static final String ZOOKEEPER_ROOT_MOHA = "moha";
+	
+	public static final String ZOOKEEPER_DIR_REQUEST_START_STOP = "request";//requests start or stop for Kafka cluster
+
+	public static final String ZOOKEEPER_DIR_LOGS = "logs";	//logs information
+	public static final String ZOOKEEPER_DIR_STATUS = "status";//running or not
+	public static final String ZOOKEEPER_DIR_REQUEST_TIME = "time";//running or not
+	public static final String ZOOKEEPER_DIR_EXECUTORS = "executors";//executors information
+
+	public static final long MOHA_MANAGER_OVERHEAD = 3 * 1000;// Ten seconds
+	public static final long KAFKA_BROKERS_TIMEOUT = 5 * 60 * 1000;// Five
+																	// minutes
+	public static final String EXECUTABLE_DIR = "exe";//executors information
+	public static final long TIMMING_INIT = 0;
+	public static final long TIMMING_PUSHING = 1;
+	public static final long TIMMING_PUSHING_FINISH = 2;
+	public static final long TIMMING_FETCHING = 3;
+	public static final long TIMMING_FETCHING_FINISH = 4;
 }

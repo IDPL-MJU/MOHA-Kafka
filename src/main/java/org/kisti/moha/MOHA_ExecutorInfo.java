@@ -2,16 +2,48 @@ package org.kisti.moha;
 
 public class MOHA_ExecutorInfo {
 	private String appId;
-	private String executorId;
+	private int executorId;
 	private String containerId;
 	private long firstMessageTime;
 	private String hostname;
 	private long launchedTime;
 	private int numExecutedTasks;
-	private long runningTime;
+	private long executionTime;
 	private int pollingTime;
 	private long endingTime;
 	private String queueName;
+	private int pushingTime;
+	private long pushingRate;
+	
+	public long getPushingRate() {
+		return pushingRate;
+	}
+
+	public void setPushingRate(long pushingRate) {
+		this.pushingRate = pushingRate;
+	}
+
+	public long getPollingRate() {
+		return pollingRate;
+	}
+
+	public void setPollingRate(long pollingRate) {
+		this.pollingRate = pollingRate;
+	}
+
+	private long pollingRate;
+	public int getPushingTime() {
+		return pushingTime;
+	}
+
+	public void setPushingTime(int pushingTime) {
+		this.pushingTime = pushingTime;
+	}
+
+	public void setPollingTime(int pollingTime) {
+		this.pollingTime = pollingTime;
+	}
+
 	MOHA_Configuration conf;
 
 	public MOHA_ExecutorInfo() {
@@ -22,7 +54,7 @@ public class MOHA_ExecutorInfo {
 	public String toString() {
 		return "MOHA_ExecutorInfo [appId=" + appId + ", executorId=" + executorId + ", containerId=" + containerId
 				+ ", firstMessageTime=" + firstMessageTime + ", hostname=" + hostname + ", launchedTime=" + launchedTime
-				+ ", numExecutedTasks=" + numExecutedTasks + ", runningTime=" + runningTime + ", pollingTime="
+				+ ", numExecutedTasks=" + numExecutedTasks + ", runningTime=" + executionTime + ", pollingTime="
 				+ pollingTime + ", endingTime=" + endingTime + ", queueName=" + queueName + ", conf=" + conf + "]";
 	}
 
@@ -57,7 +89,7 @@ public class MOHA_ExecutorInfo {
 		return pollingTime;
 	}
 
-	public void setPollingTime(int pollingTime) {
+	public void setNumOfPolls(int pollingTime) {
 		this.pollingTime = pollingTime;
 	}
 
@@ -77,11 +109,13 @@ public class MOHA_ExecutorInfo {
 		this.appId = appId;
 	}
 
-	public String getExecutorId() {
+
+
+	public int getExecutorId() {
 		return executorId;
 	}
 
-	public void setExecutorId(String executorId) {
+	public void setExecutorId(int executorId) {
 		this.executorId = executorId;
 	}
 
@@ -109,12 +143,12 @@ public class MOHA_ExecutorInfo {
 		this.numExecutedTasks = numExecutedTasks;
 	}
 
-	public long getRunningTime() {
-		return runningTime;
+	public long getExecutionTime() {
+		return executionTime;
 	}
 
-	public void setRunningTime(long exitTime) {
-		this.runningTime = exitTime;
+	public void setExecutionTime(long exitTime) {
+		this.executionTime = exitTime;
 	}
 
 	public String getQueueName() {

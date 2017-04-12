@@ -18,62 +18,70 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import org.apache.hadoop.net.NetUtils;
 import org.apache.zookeeper.KeeperException;
 
 public class MOHA_KafkaBrokerLauncher {
-	private static final Logger LOG = LoggerFactory.getLogger(MOHA_KafkaBrokerLauncher.class);
+
 	private MOHA_KafkaBrokerInfo kbInfo;
-	private static MOHA_Logger debugLogger;
-	private static MOHA_Zookeeper zk;
+	private static MOHA_Logger LOG;
+	private static MOHA_Zookeeper zkconnect;
 
 	public MOHA_KafkaBrokerLauncher(String[] args) {
-		LOG.info("Container just started on {}" + NetUtils.getHostname());
 
 		kbInfo = new MOHA_KafkaBrokerInfo();
 
 		kbInfo.setContainerId(args[0]);
 		kbInfo.setBrokerId(args[1]);
+		kbInfo.setAppId(args[2]);
+		kbInfo.setHostname(NetUtils.getHostname());
 
 		kbInfo.setKafkaBinDir(kbInfo.getConf().getKafkaVersion());
 		kbInfo.setZookeeperConnect(kbInfo.getConf().getZookeeperConnect() + "/" + kbInfo.getConf().getKafkaClusterId());
 
-		debugLogger = new MOHA_Logger((Boolean.parseBoolean(kbInfo.getConf().getKafkaDebugEnable())),
-				kbInfo.getConf().getDebugQueueName());
+		LOG = new MOHA_Logger(MOHA_KafkaBrokerLauncher.class,
+				(Boolean.parseBoolean(kbInfo.getConf().getKafkaDebugEnable())), kbInfo.getConf().getDebugQueueName());
+		
+		LOG.debug("MOHA_KafkaBrokerLauncher [" + kbInfo.getBrokerId() + "] is started in " + kbInfo.getHostname());
 
-		LOG.info(debugLogger.info("Start MOHA_KafkaBrokerLauncher constructor on " + NetUtils.getHostname()));
-		LOG.info(debugLogger.info("Init Kafka broker manager =" + args.toString()));
-		LOG.info(debugLogger.info(kbInfo.getConf().toString()));
+		zkconnect = new MOHA_Zookeeper(MOHA_KafkaBrokerLauncher.class, MOHA_Properties.ZOOKEEPER_ROOT_KAFKA,
+				kbInfo.getConf().getKafkaClusterId());
+
+		if (zkconnect == null) {
+			LOG.debug("zkconnect error");
+			return;
+		}	
 
 	}
 
 	public void run() throws IOException, InterruptedException, KeeperException {
-		LOG.info("It's about to start Kafka brokers");
 
-		zk = new MOHA_Zookeeper(kbInfo.getConf().getKafkaClusterId());
-		if (zk == null) {
-			LOG.info("Zookeeper faillllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll");
-			LOG.info(kbInfo.getConf().getKafkaClusterId());
-			return;
-		}
-
+		KafkaServerProperties props = new KafkaServerProperties();
 		List<Integer> preIds;
 		List<Integer> brokerIds;
 
-		debugLogger.info("It's about to start Kafka brokers");
 		preIds = getCurrentKafkaProcess();
 		for (int i = 0; i < preIds.size(); i++) {
-			LOG.info(preIds.get(i).toString());
-			debugLogger.info("preIds = " + preIds.get(i).toString());
-		}
 
-		ThreadKafkaStart kafkaStart = new ThreadKafkaStart();
+			LOG.debug("MOHA_KafkaBrokerLauncher [" + kbInfo.getBrokerId() + "] preIds:" + preIds.get(i).toString());
+		}
+//		kafkaServerStop(preIds);		
+//		
+//		Thread.sleep(60000);
+		
+		props.setBrokerId(kbInfo.getBrokerId());
+		props.setListeners(getOpenPort());
+		props.setLogDirs(MOHA_Properties.KAFKA_LOG_DIR);
+		props.setZookeeperConnect(MOHA_Properties.ZOOKEEPER_ROOT_KAFKA + "/" + kbInfo.getConf().getKafkaClusterId());
+
+		LOG.debug(props.toString());
+
+		ThreadKafkaBrokerStart kafkaStart = new ThreadKafkaBrokerStart(props);
 		Thread startThread = new Thread(kafkaStart);
 
 		startThread.start();
-		debugLogger.info("startThread.start()");
+		LOG.debug("startThread.start()");
 		try {
 			Thread.sleep(10000);
 		} catch (InterruptedException e) {
@@ -82,17 +90,18 @@ public class MOHA_KafkaBrokerLauncher {
 		}
 
 		brokerIds = getKafkaBrokerIds(preIds);
-		if (!zk.exist()) {
-			debugLogger.info(MOHA_Common.convertLongToDate(System.currentTimeMillis())
+		if (!zkconnect.isRunning()) {
+			LOG.debug(MOHA_Common.convertLongToDate(System.currentTimeMillis())
 					+ "  Kafka broker crashed or haven't worked yet ");
 			Thread.sleep(1000);
 		}
 
-		zk.setRequests(false);
-		debugLogger.info(MOHA_Common.convertLongToDate(System.currentTimeMillis()) + "  Kafka brokers are running on "
-				+ zk.getBootstrapServers());
-		LOG.info("Kafka server is running = {}", zk.getBootstrapServers()); //
-		while (!zk.checkRequests()) {
+		zkconnect.setRequests(false);
+		LOG.debug(MOHA_Common.convertLongToDate(System.currentTimeMillis()) + "  Kafka brokers are running on "
+				+ zkconnect.getBootstrapServers());
+
+		
+		while (!zkconnect.getRequests()) {
 
 			try {
 				Thread.sleep(1000);
@@ -103,8 +112,9 @@ public class MOHA_KafkaBrokerLauncher {
 		}
 
 		kafkaServerStop(brokerIds);
-		zk.close();
-		LOG.info(debugLogger.info("Kafka broker[" + brokerIds + "] is stopped"));
+		LOG.debug("MOHA_KafkaBrokerLauncher [" + kbInfo.getBrokerId() + "] is stopped ");
+
+		zkconnect.close();
 		return;
 	};
 
@@ -152,7 +162,6 @@ public class MOHA_KafkaBrokerLauncher {
 		p.waitFor();
 		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 		while ((line = br.readLine()) != null) {
-			LOG.info("ID = " + line);
 
 			processIds.add(Integer.parseInt(line));
 		}
@@ -167,7 +176,7 @@ public class MOHA_KafkaBrokerLauncher {
 		currentIds = getCurrentKafkaProcess();
 
 		for (int i = 0; i < currentIds.size(); i++) {
-			LOG.info(currentIds.get(i).toString());
+
 			boolean found = true;
 			for (int j = 0; j < preIds.size(); j++) {
 
@@ -179,10 +188,10 @@ public class MOHA_KafkaBrokerLauncher {
 
 			if (found) {
 				brokerIds.add(currentIds.get(i).intValue());
-				LOG.info("Broker Id = {}", currentIds.get(i).intValue());
-				debugLogger.info("Broker Id = " + currentIds.get(i).intValue());
+
+				LOG.debug("Broker Id = " + currentIds.get(i).intValue());
 			} else {
-				debugLogger.info("Background appIds = " + currentIds.get(i).toString());
+				LOG.debug("Background appIds = " + currentIds.get(i).toString());
 			}
 
 		}
@@ -191,14 +200,14 @@ public class MOHA_KafkaBrokerLauncher {
 	}
 
 	private int getOpenPort() {
-		LOG.info("Looking for available port to start kafka broker");
+
 		int port = 9092;
 		boolean open = true;
 		while (true) {
 			List<String> command = new ArrayList<String>();
 			command.add("netstat");
 			command.add("-lntu");
-			LOG.info(command.toString());
+
 			ProcessBuilder builder = new ProcessBuilder(command);
 			Process p;
 			String line;
@@ -214,7 +223,7 @@ public class MOHA_KafkaBrokerLauncher {
 					;
 				}
 				if (open) {
-					LOG.info("available port = {}", port);
+
 					return port;
 				}
 				open = true;
@@ -225,7 +234,7 @@ public class MOHA_KafkaBrokerLauncher {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			port++;
+			port+=3;
 		}
 	}
 
@@ -235,43 +244,47 @@ public class MOHA_KafkaBrokerLauncher {
 		command.add(kbInfo.getKafkaBinDir() + "/bin/kafka-server-start.sh");
 		command.add(kbInfo.getKafkaBinDir() + "/config/" + MOHA_Properties.KAFKA_SERVER_PROPERTIES);
 
-		LOG.info(command.toString());
 		ProcessBuilder builder = new ProcessBuilder(command);
 		Process p;
 		String line;
-		debugLogger.info("ProcessBuilder builder = new ProcessBuilder(command);");
+		LOG.debug("ProcessBuilder builder = " + command);
 		try {
 
 			p = builder.start();
-			debugLogger.info("p = builder.start();");
+			LOG.debug("p = builder.start();");
+//			try {
+//				p.waitFor();
+//			} catch (InterruptedException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
 
-			Thread.sleep(2000);
-			debugLogger.info("p.waitFor()");
+//			Thread.sleep(2000);
+//			LOG.debug("p.waitFor()");
 			BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 			while ((line = br.readLine()) != null) {
-				debugLogger.info(line);
+				LOG.debug(line);
 			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			e.printStackTrace();		
 		}
 	}
 
 	private void kafkaServerStop(List<Integer> appId) throws IOException, InterruptedException {
 		Runtime rt = Runtime.getRuntime();
-		rt.exec("kill -9 " + appId.get(0).intValue());
+		for(int i =0;i<appId.size();i++){
+			LOG.debug("kill -9 " + String.valueOf(appId.get(i).intValue()));
+			rt.exec("kill -9 " + appId.get(i).intValue());
+		}
+		
 	}
 
-	private void kafkaConfig() throws IOException {
+	private void kafkaConfig(KafkaServerProperties props) throws IOException {
 		BufferedWriter out;
 		BufferedReader br;
 		ArrayList<String> lines;
-
-		LOG.info("Configuring server properties --------------------------------------");
-
+		LOG.debug(props.toString());
 		lines = new ArrayList<String>();
 		String line = null;
 
@@ -286,44 +299,56 @@ public class MOHA_KafkaBrokerLauncher {
 			line = br.readLine();
 			while (line != null) {
 				if (line.contains("broker.id=0")) {
-					line = line.replace("broker.id=0", "broker.id=" + kbInfo.getBrokerId());
-					LOG.info("Setting broker id = {}", line);
-					debugLogger.info(line);
+					line = line.replace("broker.id=0", "broker.id=" + props.getBrokerId());
+					LOG.debug(line);
 				}
 
 				if (line.contains("#listeners=PLAINTEXT://:9092")) {
 					line = line.replace("#listeners=PLAINTEXT://:9092",
-							"listeners=PLAINTEXT://:" + Integer.toString(getOpenPort()));
-					LOG.info("Setting port = {}", line);
-					debugLogger.info(line);
+							"listeners=PLAINTEXT://:" + Integer.toString(props.getListeners()));
+
+					LOG.debug(line);
 				}
+				//version 0.9.0.1
+//				if (line.contains("listeners=PLAINTEXT://:9092")) {
+//					line = line.replace("listeners=PLAINTEXT://:9092",
+//							"listeners=PLAINTEXT://:" + Integer.toString(props.getListeners()));
+//
+//					LOG.all(line);
+//				}
 
 				if (line.contains("log.dirs=/tmp/kafka-logs")) {
-					line = line.replace("log.dirs=/tmp/kafka-logs", "log.dirs=" + MOHA_Properties.KAFKA_LOG_DIR);
-					LOG.info("Setting log directory = {}", line);
-					debugLogger.info(line);
+					line = line.replace("log.dirs=/tmp/kafka-logs", "log.dirs=" + props.getLogDirs());
+
+					LOG.debug(line);
 				}
+				//version 0.9.0.1
+//				if (line.contains("log.dirs=/tmp/kafka-logs")) {
+//					line = line.replace("log.dirs=/tmp/kafka-logs", "log.dirs=" + props.getLogDirs());
+//
+//					LOG.all(line);
+//				}
 
 				if (line.contains("zookeeper.connect=localhost:2181")) {
 					line = line.replace("zookeeper.connect=localhost:2181",
-							"zookeeper.connect=localhost:2181/" + kbInfo.getConf().getKafkaClusterId());
-					LOG.info("Setting Zookeeper directory = {}", line);
-					debugLogger.info(line);
-				}
+							"zookeeper.connect=localhost:2181/" + props.getZookeeperConnect());
 
+					LOG.debug(line);
+				}
+				
 				if (line.contains("#delete.topic.enable=true")) {
 					line = line.replace("#delete.topic.enable=true", "delete.topic.enable=true");
-					LOG.info("Enable delete topic immediately");
-					debugLogger.info(line);
+
+					LOG.debug(line);
 				}
 
 				lines.add(line);
 				line = br.readLine();
 			}
-
+			lines.add("group.max.session.timeout.ms=3600000");
 			fr.close();
 			br.close();
-			debugLogger.info("start writing broker properties");
+			LOG.debug("start writing broker properties");
 			FileWriter fw = new FileWriter(brokerProperties);
 			out = new BufferedWriter(fw);
 			for (String s : lines)
@@ -331,17 +356,19 @@ public class MOHA_KafkaBrokerLauncher {
 
 			out.flush();
 			out.close();
-			debugLogger.info("end writing broker properties");
+			LOG.debug("end writing broker properties");
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
 	}
 
-	protected class ThreadKafkaStart implements Runnable {
+	protected class ThreadKafkaBrokerStart implements Runnable {
+		private KafkaServerProperties props;
 
-		public ThreadKafkaStart() {
+		public ThreadKafkaBrokerStart(KafkaServerProperties props) {
 			// TODO Auto-generated constructor stub
-			LOG.info("ThreadKafkaStart");
+			this.props = props;
+
 		}
 
 		@Override
@@ -349,7 +376,7 @@ public class MOHA_KafkaBrokerLauncher {
 			// TODO Auto-generated method stub
 
 			try {
-				kafkaConfig();
+				kafkaConfig(props);
 				kafkaServerStart();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -360,4 +387,48 @@ public class MOHA_KafkaBrokerLauncher {
 
 	}
 
+	private class KafkaServerProperties {
+		String brokerId;
+		int listeners;
+		String logDirs;
+		String zookeeperConnect;
+
+		@Override
+		public String toString() {
+			return "KafkaServerProperties [brokerId=" + brokerId + ", listeners=" + listeners + ", logDirs=" + logDirs
+					+ ", zookeeperConnect=" + zookeeperConnect + "]";
+		}
+
+		public String getBrokerId() {
+			return brokerId;
+		}
+
+		public void setBrokerId(String brokerId) {
+			this.brokerId = brokerId;
+		}
+
+		public int getListeners() {
+			return listeners;
+		}
+
+		public void setListeners(int listeners) {
+			this.listeners = listeners;
+		}
+
+		public String getLogDirs() {
+			return logDirs;
+		}
+
+		public void setLogDirs(String logDirs) {
+			this.logDirs = logDirs;
+		}
+
+		public String getZookeeperConnect() {
+			return zookeeperConnect;
+		}
+
+		public void setZookeeperConnect(String zookeeperConnect) {
+			this.zookeeperConnect = zookeeperConnect;
+		}
+	}
 }

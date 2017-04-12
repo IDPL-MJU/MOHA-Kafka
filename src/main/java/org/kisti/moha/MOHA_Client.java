@@ -1,14 +1,15 @@
 package org.kisti.moha;
 
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Vector;
 
 import org.apache.commons.cli.CommandLine;
@@ -19,8 +20,6 @@ import org.apache.commons.cli.ParseException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.permission.FsAction;
-import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.yarn.api.ApplicationConstants.Environment;
 import org.apache.hadoop.yarn.api.protocolrecords.GetNewApplicationResponse;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
@@ -41,7 +40,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
-
+import org.apache.kafka.common.PartitionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -128,14 +127,11 @@ public class MOHA_Client {
 		option.addOption("appname", true, "MOHA Application Name (Default: MOHA)");
 		option.addOption("priority", true, "Application Priority (Default: 0)");
 		option.addOption("queue", true, "RM Queue in which this application is to be submitted (Default: default)");
-		option.addOption("manager_memory", true,
-				"Amount of memory in MB to be requested to run the MOHA Manager (Default: 1024)");
+		option.addOption("manager_memory", true, "Amount of memory in MB to be requested to run the MOHA Manager (Default: 1024)");
 		option.addOption("jar", true, "JAR file containing the MOHA Manager and Task Executor (Default: MOHA.jar)");
-		option.addOption("executor_memory", true,
-				"Amount of memory in MB to be requested to run the MOHA TaskExecutor (Default: 1024)");
+		option.addOption("executor_memory", true, "Amount of memory in MB to be requested to run the MOHA TaskExecutor (Default: 1024)");
 		option.addOption("num_executors", true, "Number of MOHA Task Executors (Default: 1)");
-		option.addOption("JDL", true,
-				"Job Description Language file that contains the MOHA job specification (must specified)");
+		option.addOption("JDL", true, "Job Description Language file that contains the MOHA job specification (must specified)");
 		option.addOption("help", false, "Print Usage of MOHA_Client"); // Add
 																		// the
 																		// help
@@ -204,9 +200,7 @@ public class MOHA_Client {
 			// executed");
 		}
 
-		LOG.info(
-				"App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, "
-						+ "num ececutors = {}, jdl path = {}",
+		LOG.info("App name = {}, priority = {}, queue = {}, manager memory = {}, jarPath = {}, executor memory = {}, " + "num ececutors = {}, jdl path = {}",
 				appName, priority, queue, managerMemory, jarPath, executorMemory, numExecutors, jdlPath);
 
 		return true;
@@ -234,14 +228,12 @@ public class MOHA_Client {
 		LOG.info("Number of NodeManagers in the Cluster = {}", clusterMetrics.getNumNodeManagers());
 		List<NodeReport> nodeReports = yarnClient.getNodeReports(NodeState.RUNNING);
 		for (NodeReport node : nodeReports) {
-			LOG.info("Node ID = {} , address = {}, container = {}", node.getNodeId(), node.getHttpAddress(),
-					node.getNumContainers());
+			LOG.info("Node ID = {} , address = {}, container = {}", node.getNodeId(), node.getHttpAddress(), node.getNumContainers());
 
 		}
 		List<QueueInfo> nodeQueues = yarnClient.getAllQueues();
 		for (QueueInfo queues : nodeQueues) {
-			LOG.info("name = {}, capacity = {}, maximum capacity of each queue = {}", queues.getQueueName(),
-					queues.getCapacity(), queues.getMaximumCapacity());
+			LOG.info("name = {}, capacity = {}, maximum capacity of each queue = {}", queues.getQueueName(), queues.getCapacity(), queues.getMaximumCapacity());
 		}
 		Path jarSrc = new Path(this.jarPath);
 		String rootDir = appName + "/" + appId.getId();
@@ -261,22 +253,13 @@ public class MOHA_Client {
 		localResources.put("app.jar", jarResource);
 		LOG.info("Jar resource = {}", jarResource.toString());
 
-		Path jdlsrc = new Path(this.jdlPath);
-		String jdlPathSuffix = rootDir + "/" + MOHA_Properties.JDL;
-		Path jdlDest = new Path(fs.getHomeDirectory(), jdlPathSuffix);
-		fs.copyFromLocalFile(false, true, jdlsrc, jdlDest);
+		Path mohaSrc = new Path("run.tar.gz");
+		String pathSuffixmoha_tgz = appName + "/" + appId.getId() + "/run.tar.gz";
+		Path mohaDest = new Path(fs.getHomeDirectory(), pathSuffixmoha_tgz);
+		fs.copyFromLocalFile(false, true, mohaSrc, mohaDest);
 
-		FileStatus jdlStatus = fs.getFileLinkStatus(jdlDest);
-
-		LocalResource jdlResource = Records.newRecord(LocalResource.class);
-		jdlResource.setResource(ConverterUtils.getYarnUrlFromPath(jdlDest));
-		jdlResource.setSize(jdlStatus.getLen());
-		jdlResource.setTimestamp(jdlStatus.getModificationTime());
-		jdlResource.setType(LocalResourceType.FILE);
-		jdlResource.setVisibility(LocalResourceVisibility.APPLICATION);
-
-		localResources.put(MOHA_Properties.JDL, jdlResource);
-		LOG.info("Jdl resource = {}", jdlResource.toString());
+		FileStatus mohaStatus = fs.getFileLinkStatus(mohaDest);
+		LOG.info("FileStatus ={}", mohaStatus.toString());
 
 		MOHA_Configuration mohaConf = new MOHA_Configuration("conf/MOHA.conf");
 		LOG.info("Configuration file = {}", mohaConf.toString());
@@ -287,9 +270,12 @@ public class MOHA_Client {
 		env.put(MOHA_Properties.APP_JAR_TIMESTAMP, Long.toString(jarDestStatus.getModificationTime()));
 		env.put(MOHA_Properties.APP_JAR_SIZE, Long.toString(jarDestStatus.getLen()));
 
+		env.put(MOHA_Properties.MOHA_TGZ, mohaDest.toUri().toString());
+		env.put(MOHA_Properties.MOHA_TGZ_TIMESTAMP, Long.toString(mohaStatus.getModificationTime()));
+		env.put(MOHA_Properties.MOHA_TGZ_SIZE, Long.toString(mohaStatus.getLen()));
+
 		StringBuilder classPathEnv = new StringBuilder().append(File.pathSeparatorChar).append("./app.jar");
-		for (String c : conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH,
-				YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
+		for (String c : conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH, YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH)) {
 			classPathEnv.append(File.pathSeparatorChar);
 			classPathEnv.append(c.trim());
 		}
@@ -306,9 +292,20 @@ public class MOHA_Client {
 		env.put(MOHA_Properties.KAFKA_DEBUG_QUEUE_NAME, mohaConf.getDebugQueueName());
 		env.put(MOHA_Properties.KAFKA_DEBUG_ENABLE, mohaConf.getKafkaDebugEnable());
 		env.put(MOHA_Properties.MYSQL_DEBUG_ENABLE, mohaConf.getMysqlLogEnable());
-		env.put(MOHA_Properties.ZOOKEEPER_CONNECT, mohaConf.getZookeeperConnect());
-		env.put(MOHA_Properties.ZOOKEEPER_BOOTSTRAP_SERVER, mohaConf.getBootstrapServers());
+		env.put(MOHA_Properties.CONF_ZOOKEEPER_CONNECT, mohaConf.getZookeeperConnect());
+		env.put(MOHA_Properties.CONF_ZOOKEEPER_BOOTSTRAP_SERVER, mohaConf.getBootstrapServers());
 
+		String zookeeperConnect = mohaConf.getZookeeperConnect() + "/" + MOHA_Properties.ZOOKEEPER_ROOT_KAFKA + "/" + mohaConf.getKafkaClusterId();
+		String bootstrapServer = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT_KAFKA, mohaConf.getKafkaClusterId()).getBootstrapServers();
+
+		env.put(MOHA_Properties.KAFKA_ZOOKEEPER_CONNECT, zookeeperConnect);
+		env.put(MOHA_Properties.KAFKA_ZOOKEEPER_BOOTSTRAP_SERVER, bootstrapServer);
+		try {
+			setEnv(env);
+		} catch (Exception e3) {
+			// TODO Auto-generated catch block
+			e3.printStackTrace();
+		}
 		ApplicationSubmissionContext appContext = yarnClientApplication.getApplicationSubmissionContext();
 		appContext.setApplicationName(appName);
 
@@ -348,25 +345,144 @@ public class MOHA_Client {
 		appContext.setPriority(pri);
 		appContext.setQueue(queue);
 
+		MOHA_Zookeeper zks = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT_MOHA, appId.toString());
+
+		zks.createRoot();
+		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_EXECUTORS);
+		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_LOGS);
+		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_STATUS);
+		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_REQUEST_TIME);
+		for (int i = 0; i < numExecutors; i++) {
+			zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_REQUEST_TIME + "/" + i);
+		}
+
+		/* Creating a queue and pushing jobs to the queue */
+
+		MOHA_Queue jobQueue = new MOHA_Queue(zookeeperConnect, bootstrapServer, appId.toString());
+		LOG.info(jobQueue.toString());
+
+		jobQueue.create(numExecutors, 1);		
+		
+		jobQueue.register();
+
+		/* Push task commands to the queue */
+		FileReader fileReader;
+		int numCommands;
+		String jobCommands;
+		try {
+			fileReader = new FileReader(this.jdlPath);
+			LOG.info(fileReader.toString());
+			BufferedReader buff = new BufferedReader(fileReader);
+			numCommands = Integer.parseInt(buff.readLine());
+			jobCommands = buff.readLine();
+			buff.close();
+
+			for (int i = 0; i < numCommands; i++) {
+				// jobQueue.push(Integer.toString(i), jobCommands);
+				LOG.info(jobCommands);
+			}
+
+		} catch (NumberFormatException | IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		List<PartitionInfo> infor = jobQueue.partitionsFor();
+
+		LOG.info(String.valueOf(infor.size()));
+		for (int i = 0; i < infor.size(); i++) {
+			LOG.info(infor.get(i).toString());
+		}
+
+		try {
+			Thread.sleep(200);
+		} catch (InterruptedException e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+		}
+
+		File folder = new File("vina_input");
+		File[] listOfFiles = folder.listFiles();
+		Path tarsrc;
+		String tarPathSuffix;
+		Path tarDest;
+		Path[] uris = new Path[listOfFiles.length];
+
+		for (int i = 0; i < listOfFiles.length; i++) {
+			if (listOfFiles[i].isFile()) {
+				System.out.println("File " + listOfFiles[i].getName());
+				tarsrc = new Path("vina_input/" + listOfFiles[i].getName());
+				tarPathSuffix = rootDir + "/" + "vina_input/" + listOfFiles[i].getName();
+				tarDest = new Path(fs.getHomeDirectory(), tarPathSuffix);
+				fs.copyFromLocalFile(false, true, tarsrc, tarDest);
+				jobQueue.push(Integer.toString(i), tarDest.toString());
+				uris[i] = tarDest;
+			} else if (listOfFiles[i].isDirectory()) {
+				System.out.println("Directory " + listOfFiles[i].getName());
+			}
+		}
+
+		/* Submits the application */
+
 		LOG.info("MOHA Manager Container = {}", managerContainer.toString());
 		ApplicationId appId = yarnClient.submitApplication(appContext);
 		LOG.info("AppID = {}", appId.toString());
-		MOHA_Zookeeper zks = new MOHA_Zookeeper(null);
-		zks.createDir(appId.toString());
-		while (zks.exists(appId.toString())) {
+		LOG.info(zookeeperConnect + bootstrapServer);
+		MOHA_Logger logger = new MOHA_Logger(MOHA_Client.class, Boolean.parseBoolean(mohaConf.getKafkaDebugEnable()), mohaConf.getDebugQueueName(),
+				zookeeperConnect, bootstrapServer , appId.toString());
+		logger.init();
+		logger.subcribe();
+		
+		zks.setStatus(true);
+
+		// Waiting for MOHA_Manager fully launched
+		try {
+			Thread.sleep(MOHA_Properties.MOHA_MANAGER_OVERHEAD);
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		// Checking MOHA_Manager status if it is running
+		while (zks.getStatus()) {
 			try {
-				Thread.sleep(1000);
+				zks.setStatus(false);
+				List<String> logs= logger.getLogs();
+				for(String log:logs){
+					LOG.info(log);
+				}
+				Thread.sleep(3000);
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+
 		}
-		;
+		jobQueue.deleteQueue();
+		zks.close();
+		for (int i = 0; i < uris.length; i++) {
+			fs.delete(uris[i], true);
+		}
 		LOG.info("Deleting root directory which contains jar file and jdl file on hdfs : {}", rootDir);
 		fs.delete(new Path(rootDir), true);
 		fs.close();
+		logger.close();
 		LOG.info("Application successfully finish");
 		return true;
 	}// The end of run function
+	
+	public static void setEnv(Map<String, String> newenv) throws Exception {
+	    Class[] classes = Collections.class.getDeclaredClasses();
+	    Map<String, String> env = System.getenv();
+	    for(Class cl : classes) {
+	        if("java.util.Collections$UnmodifiableMap".equals(cl.getName())) {
+	            Field field = cl.getDeclaredField("m");
+	            field.setAccessible(true);
+	            Object obj = field.get(env);
+	            Map<String, String> map = (Map<String, String>) obj;
+	            map.clear();
+	            map.putAll(newenv);
+	        }
+	    }
+	}
 
 }// The end of MOHA_Client class

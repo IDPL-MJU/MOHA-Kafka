@@ -1,17 +1,12 @@
 package org.kisti.moha;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -37,8 +32,6 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class MOHA_KafkaManager {
 	public class RMCallbackHandler implements CallbackHandler {
@@ -46,17 +39,17 @@ public class MOHA_KafkaManager {
 		@Override
 		public void onContainersCompleted(List<ContainerStatus> statuses) {
 			// TODO Auto-generated method stub
-			LOG.info("Got response from RM for container ask, completed count = {}", statuses.size());
+
 			for (ContainerStatus status : statuses) {
 				numCompletedContainers.incrementAndGet();
-				LOG.info("Container completed: ", status.getContainerId());
+
 			}
 		}
 
 		@Override
 		public void onContainersAllocated(List<Container> containers) {
 			// TODO Auto-generated method stub
-			LOG.info("Got response from RM for container ask, allocated count = {}", containers.size());
+
 			for (Container container : containers) {
 
 				ContainerLauncher launcher = new ContainerLauncher(container, numAllocatedContainers.getAndIncrement(),
@@ -96,7 +89,6 @@ public class MOHA_KafkaManager {
 
 	}
 
-	private static final Logger LOG = LoggerFactory.getLogger(MOHA_KafkaManager.class);
 	private YarnConfiguration conf;
 	private AMRMClientAsync<ContainerRequest> amRMClient;
 
@@ -109,7 +101,8 @@ public class MOHA_KafkaManager {
 	private KBCallbackHandler containerListener;
 	private List<Thread> launchThreads = new ArrayList<>();
 
-	private static MOHA_Logger debugLogger;
+	private MOHA_Logger debugLogger;
+	private MOHA_Zookeeper zkconnect;
 
 	private MOHA_KafkaInfo kafkaInfo;
 	Vector<CharSequence> statistic = new Vector<>(30);
@@ -119,7 +112,7 @@ public class MOHA_KafkaManager {
 		conf = new YarnConfiguration();
 		fileSystem = FileSystem.get(conf);
 		for (String str : args) {
-			LOG.info(str);
+
 		}
 
 		setKafkaInfo(new MOHA_KafkaInfo());
@@ -131,30 +124,27 @@ public class MOHA_KafkaManager {
 
 		getKafkaInfo().setNumPartitions(getKafkaInfo().getNumBrokers());
 
-		debugLogger = new MOHA_Logger(Boolean.parseBoolean(getKafkaInfo().getConf().getKafkaDebugEnable()),
+		debugLogger = new MOHA_Logger(MOHA_KafkaManager.class,
+				Boolean.parseBoolean(getKafkaInfo().getConf().getKafkaDebugEnable()),
 				getKafkaInfo().getConf().getDebugQueueName());
 
-		LOG.info(getKafkaInfo().getConf().toString());
-		debugLogger.info(getKafkaInfo().getConf().toString());
-		debugLogger.info("MOHA_KafkaManager");
-		debugLogger.info(getKafkaInfo().toString());
-		String ipAddress = InetAddress.getLocalHost().getHostAddress();
-		LOG.info("Host idAdress = {}", ipAddress);
+		zkconnect = new MOHA_Zookeeper(MOHA_Manager.class, MOHA_Properties.ZOOKEEPER_ROOT_KAFKA,
+				getKafkaInfo().getAppId());
+
+		debugLogger.debug(getKafkaInfo().getConf().toString());
+		debugLogger.debug("MOHA_KafkaManager");
+		debugLogger.debug(getKafkaInfo().toString());
 
 	}
 
 	public void run() throws YarnException, IOException {
-		LOG.info(debugLogger.info("MOHA_KafkaManager is to be running ..."));
 
 		amRMClient = AMRMClientAsync.createAMRMClientAsync(1000, new RMCallbackHandler());
 		amRMClient.init(conf);
-		LOG.info(debugLogger.info("amRMClient.start() ..."));
+
 		amRMClient.start();
 		RegisterApplicationMasterResponse response;
 		response = amRMClient.registerApplicationMaster(NetUtils.getHostname(), -1, "");
-		LOG.info("MOHA Manager is registered with response : {}", response.toString());
-
-		LOG.info(debugLogger.info("nmClient.start(); ..."));
 
 		containerListener = new KBCallbackHandler(this);
 		nmClient = NMClientAsync.createNMClientAsync(containerListener);
@@ -169,7 +159,7 @@ public class MOHA_KafkaManager {
 		pri.setPriority(0);
 
 		for (int i = 0; i < getKafkaInfo().getNumBrokers(); i++) {
-			LOG.info(debugLogger.info("Request containers from Resourse Manager, containerNumber = " + i));
+
 			ContainerRequest containerRequest = new ContainerRequest(capacity, null, null, pri);
 			amRMClient.addContainerRequest(containerRequest);
 			numOfContainers++;
@@ -185,8 +175,8 @@ public class MOHA_KafkaManager {
 		while (!done && (numCompletedContainers.get() < numOfContainers)) {
 
 			try {
-				// LOG.info(outputQueue.push("The number of completed Containers
-				// = " + this.numCompletedContainers.get()));
+				// Send heart beat to client
+				zkconnect.setStatus(true);
 				Thread.sleep(1000);
 
 			} catch (InterruptedException e) {
@@ -194,29 +184,23 @@ public class MOHA_KafkaManager {
 				e.printStackTrace();
 			}
 		}
-		LOG.info(debugLogger.info("The number of completed Containers = " + this.numCompletedContainers.get()));
-		LOG.info(debugLogger.info("Containers have all completed, so shutting down NMClient and AMRMClient ..."));
 
 		getKafkaInfo().setMakespan(System.currentTimeMillis() - getKafkaInfo().getStartingTime());
-		debugLogger.info("setMakespan");
+		debugLogger.debug("setMakespan");
 
-		MOHA_Zookeeper zk = new MOHA_Zookeeper(getKafkaInfo().getConf().getKafkaClusterId());
-		zk.delete();
-		zk.close();
-
-		debugLogger.info(getKafkaInfo().getConf().getKafkaClusterId());
+		debugLogger.debug(getKafkaInfo().getConf().getKafkaClusterId());
 		nmClient.stop();
-		debugLogger.info("stop");
+		debugLogger.debug("stop");
 		amRMClient.unregisterApplicationMaster(FinalApplicationStatus.SUCCEEDED, "Application complete!", null);
-		debugLogger.info("unregisterApplicationMaster");
+		debugLogger.debug("unregisterApplicationMaster");
 		amRMClient.stop();
-		debugLogger.info("stop");
+		debugLogger.debug("stop");
 
 	}
 
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
-		LOG.info("Starting MOHA Manager ...");
+
 		try {
 			MOHA_KafkaManager mhm = new MOHA_KafkaManager(args);
 			mhm.run();
@@ -250,7 +234,6 @@ public class MOHA_KafkaManager {
 			this.containerListener = containerListener;
 			this.id = id;
 
-			LOG.info(containerListener.toString());
 		}
 
 		public String getLaunchCommand(Container container, int containerId) {
@@ -260,6 +243,7 @@ public class MOHA_KafkaManager {
 			// set broker id
 			vargs.add(container.getId().toString());
 			vargs.add(String.valueOf(containerId));
+			vargs.add(getKafkaInfo().getAppId());
 
 			vargs.add("1><LOG_DIR>/MOHA_KafkaBrokerLauncher.stdout");
 			vargs.add("2><LOG_DIR>/MOHA_KafkaBrokerLauncher.stderr");
@@ -273,7 +257,6 @@ public class MOHA_KafkaManager {
 		@Override
 		public void run() {
 
-			LOG.info("Setting up ContainerLauncher for containerid = {}", container.getId());
 			Map<String, LocalResource> localResources = new HashMap<>();
 			Map<String, String> env = System.getenv();
 			LocalResource appJarFile = Records.newRecord(LocalResource.class);
@@ -288,7 +271,6 @@ public class MOHA_KafkaManager {
 			appJarFile.setTimestamp(Long.valueOf((env.get(MOHA_Properties.APP_JAR_TIMESTAMP))));
 			appJarFile.setSize(Long.valueOf(env.get(MOHA_Properties.APP_JAR_SIZE)));
 			localResources.put("app.jar", appJarFile);
-			LOG.info("Added {} as a local resource to the Container ", appJarFile.toString());
 
 			// Setting Kafka dependencies package
 			LocalResource kafkaPackage = Records.newRecord(LocalResource.class);
@@ -304,8 +286,6 @@ public class MOHA_KafkaManager {
 			kafkaPackage.setSize(Long.valueOf(env.get(MOHA_Properties.KAFKA_TGZ_SIZE)));
 			localResources.put("kafkaLibs", kafkaPackage);
 
-			LOG.info("Added {} as a local resource to the Container ", kafkaPackage.toString());
-
 			ContainerLaunchContext context = Records.newRecord(ContainerLaunchContext.class);
 			context.setEnvironment(env);
 			context.setLocalResources(localResources);
@@ -314,11 +294,9 @@ public class MOHA_KafkaManager {
 			List<String> commands = new ArrayList<>();
 			commands.add(command);
 			context.setCommands(commands);
-			LOG.info("Environment variable = {}", env);
-			LOG.info("Local resrourses = {}", localResources);
-			LOG.info("Command to execute MOHA_KafkaBrokerLauncher = {}", command);
+
 			nmClient.startContainerAsync(container, context);
-			LOG.info("Container {} launched!", container.getId());
+
 		}
 	}
 

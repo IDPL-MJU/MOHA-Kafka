@@ -86,11 +86,11 @@ public class MOHA_Configuration {
 			setEnableMysqlLog(getenv.get(MOHA_Properties.MYSQL_DEBUG_ENABLE));
 		}
 
-		if (getenv.containsKey(MOHA_Properties.ZOOKEEPER_CONNECT)) {
-			setZookeeperConnect(getenv.get(MOHA_Properties.ZOOKEEPER_CONNECT));
+		if (getenv.containsKey(MOHA_Properties.CONF_ZOOKEEPER_CONNECT)) {
+			setZookeeperConnect(getenv.get(MOHA_Properties.CONF_ZOOKEEPER_CONNECT));
 		}
-		if (getenv.containsKey(MOHA_Properties.ZOOKEEPER_BOOTSTRAP_SERVER)) {
-			setBootstrapServers(getenv.get(MOHA_Properties.ZOOKEEPER_BOOTSTRAP_SERVER));
+		if (getenv.containsKey(MOHA_Properties.CONF_ZOOKEEPER_BOOTSTRAP_SERVER)) {
+			setBootstrapServers(getenv.get(MOHA_Properties.CONF_ZOOKEEPER_BOOTSTRAP_SERVER));
 		}
 
 	}

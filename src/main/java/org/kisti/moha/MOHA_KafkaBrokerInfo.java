@@ -2,12 +2,22 @@ package org.kisti.moha;
 
 public class MOHA_KafkaBrokerInfo {
 
+	private String appId;
+	public String getAppId() {
+		return appId;
+	}
+
+	public void setAppId(String appId) {
+		this.appId = appId;
+	}
+
 	private String brokerId;
 	private String containerId;
 	private String zookeeperConnect;
 	private String kafkaBinDir;
 	private int port;
 	private String hostname;
+
 	private MOHA_Configuration conf;
 
 	public MOHA_KafkaBrokerInfo() {

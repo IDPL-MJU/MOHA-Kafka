@@ -9,7 +9,7 @@ import java.util.TimeZone;
 
 public class MOHA_Common {
 	public static String convertLongToDate(long dateMilisecs) {
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.US);
 
 		GregorianCalendar calendar = new GregorianCalendar(TimeZone.getTimeZone("US/Central"));
 		calendar.setTimeInMillis(dateMilisecs);

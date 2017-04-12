@@ -8,9 +8,9 @@ import java.util.concurrent.ConcurrentMap;
 import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerStatus;
+import org.apache.hadoop.yarn.client.api.async.NMClientAsync;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.yarn.client.api.async.NMClientAsync;
 
 public class KBCallbackHandler implements NMClientAsync.CallbackHandler {
 
@@ -22,46 +22,46 @@ public class KBCallbackHandler implements NMClientAsync.CallbackHandler {
 
 	public KBCallbackHandler(MOHA_KafkaManager applicationMaster) {
 		this.mohaManager = applicationMaster;
-		debugLogger = new MOHA_Logger(
+		debugLogger = new MOHA_Logger(KBCallbackHandler.class,
 				Boolean.parseBoolean(applicationMaster.getKafkaInfo().getConf().getKafkaDebugEnable()),
 				applicationMaster.getKafkaInfo().getConf().getDebugQueueName());
 
-		LOG.info(debugLogger.info("nmClient.start(); ..."));
+		
 	}
 
 	public void addContainer(ContainerId containerId, Container container) {
 		containers.putIfAbsent(containerId, container);
-		LOG.info(debugLogger.info(" addContainer " + containerId));
+		
 	}
 
 	@Override
 	public void onContainerStopped(ContainerId containerId) {
 		LOG.debug("Succeeded to stop Container {}", containerId);
-		LOG.info(debugLogger.info(" onContainerStopped " + containerId));
+		
 		containers.remove(containerId);
 	}
 
 	@Override
 	public void onContainerStatusReceived(ContainerId containerId, ContainerStatus containerStatus) {
 		LOG.debug("Container Status: id = {}, status = {}", containerId, containerStatus);
-		LOG.info(debugLogger.info(" onContainerStatusReceived " + containerId));
+		
 	}
 
 	@Override
 	public void onContainerStarted(ContainerId containerId, Map<String, ByteBuffer> allServiceResponse) {
 		LOG.debug("Succeeded to start Container {}", containerId);
 
-		LOG.info(debugLogger.info(" onContainerStarted " + containerId));
+		
 		Container container = containers.get(containerId);
 		if (container != null) {
-			LOG.info(debugLogger.info(" onContainerStarted" + container.toString()));
+			
 			mohaManager.nmClient.getContainerStatusAsync(containerId, container.getNodeId());
 		}
 	}
 
 	@Override
 	public void onStartContainerError(ContainerId containerId, Throwable t) {
-		LOG.info(debugLogger.info(" onStartContainerError " + containerId));
+		
 		LOG.error("Failed to start Container {}", containerId);
 		containers.remove(containerId);
 		mohaManager.numCompletedContainers.incrementAndGet();
@@ -69,13 +69,13 @@ public class KBCallbackHandler implements NMClientAsync.CallbackHandler {
 
 	@Override
 	public void onGetContainerStatusError(ContainerId containerId, Throwable t) {
-		LOG.info(debugLogger.info(" onGetContainerStatusError " + containerId));
+		
 		LOG.error("Failed to query the status of Container {}", containerId);
 	}
 
 	@Override
 	public void onStopContainerError(ContainerId containerId, Throwable t) {
-		LOG.info(debugLogger.info(" onStopContainerError " + containerId));
+		
 		LOG.error("Failed to stop Container {}", containerId);
 		containers.remove(containerId);
 	}

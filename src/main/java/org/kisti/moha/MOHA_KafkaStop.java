@@ -5,8 +5,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
 
-import org.apache.zookeeper.KeeperException;
-
 public class MOHA_KafkaStop {
 	private static MOHA_Zookeeper zk;
 
@@ -36,16 +34,12 @@ public class MOHA_KafkaStop {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		zk = new MOHA_Zookeeper(kafkaClusterId);
+		zk = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT_KAFKA , kafkaClusterId);
 	}
 
 	public void run() {
 
-		try {
-			zk.setRequests(true);
-		} catch (IOException | InterruptedException | KeeperException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		zk.setRequests(true);
+
 	}
 }

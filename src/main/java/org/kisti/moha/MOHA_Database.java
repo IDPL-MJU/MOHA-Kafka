@@ -4,12 +4,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.Locale;
-import java.util.TimeZone;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,10 +70,10 @@ public class MOHA_Database {
 			return;
 
 		String sql = "insert into " + MOHA_Properties.DB_EXECUTOR_TABLE_NAME
-				+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
+				+ "(appId, executorId, containerId, hostname, launchedTime,  numExecutedTasks, runningTime, pushingRate, pollingRate,launchedTimeMiniSeconds, firstMessageTime, pollingtime,endingTime) values (\""
 				+ eInfo.getAppId() + "\"" + ",\"" + eInfo.getExecutorId() + "\"" + ",\"" + eInfo.getContainerId() + "\""
 				+ ",\"" + eInfo.getHostname() + "\"" + ",\"" + MOHA_Common.convertLongToDate(eInfo.getLaunchedTime())
-				+ "\"" + "," + eInfo.getNumExecutedTasks() + "," + eInfo.getRunningTime() + ","
+				+ "\"" + "," + eInfo.getNumExecutedTasks() + "," + eInfo.getExecutionTime() + ","+ eInfo.getPushingRate() + ","+ eInfo.getPollingRate() + ","
 				+ eInfo.getLaunchedTime() + "," + eInfo.getFirstMessageTime() + "," + eInfo.getPollingTime() + ","
 				+ eInfo.getEndingTime() + ")";
 

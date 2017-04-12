@@ -1,14 +1,11 @@
 package org.kisti.moha;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Vector;
 
 import org.apache.commons.cli.CommandLine;
@@ -39,7 +36,6 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,6 +99,7 @@ public class MOHA_KafkaStart {
 		yarnClient = YarnClient.createYarnClient();
 		yarnClient.init(yarnConf);
 		fs = FileSystem.get(yarnConf);
+		LOG.info("yarnClient = {}", yarnClient.toString());
 	}// The end of MOHA_KafkaClient constructor
 
 	public boolean init(String[] args) throws ParseException {
@@ -152,7 +149,7 @@ public class MOHA_KafkaStart {
 		brokerMem = Integer.parseInt(inputParser.getOptionValue("broker_memory", "1024"));
 		numBrokers = Integer.parseInt(inputParser.getOptionValue("num_brokers", "1"));
 
-		// [UPDATE] The Job Description File is necessary to execute MOHA tasks
+		// [UPDATE] Kafka binary package should be provided
 		if (!inputParser.hasOption("kafka_tgz")) {
 			LOG.error("Kafka binary package should be provided !");
 			return false;
@@ -210,10 +207,10 @@ public class MOHA_KafkaStart {
 
 	public boolean run() throws YarnException, IOException {
 
-		MOHA_Configuration mohaConf = new MOHA_Configuration("conf/MOHA.conf");
-		LOG.info(mohaConf.toString());
+		MOHA_Configuration appConf = new MOHA_Configuration("conf/MOHA.conf");
+		LOG.info(appConf.toString());
 
-		LOG.info("yarnClient = {}", yarnClient.toString());
+		
 		yarnClient.start();
 		YarnClientApplication yarnClientApplication = yarnClient.createApplication();
 		GetNewApplicationResponse appResponse = yarnClientApplication.getNewApplicationResponse();
@@ -230,13 +227,13 @@ public class MOHA_KafkaStart {
 		LOG.info("Number of NodeManagers in the Cluster = {}", clusterMetrics.getNumNodeManagers());
 		List<NodeReport> nodeReports = yarnClient.getNodeReports(NodeState.RUNNING);
 		for (NodeReport node : nodeReports) {
-			LOG.info("Node ID = {} , address = {}, container = {}", node.getNodeId(), node.getHttpAddress(),
+			LOG.info("NodeReport: Node ID = {} , address = {}, container = {}", node.getNodeId(), node.getHttpAddress(),
 					node.getNumContainers());
 
 		}
 		List<QueueInfo> nodeQueues = yarnClient.getAllQueues();
 		for (QueueInfo queues : nodeQueues) {
-			LOG.info("name = {}, capacity = {}, maximum capacity of each queue = {}", queues.getQueueName(),
+			LOG.info("QueueInfo: name = {}, capacity = {}, maximum capacity of each queue = {}", queues.getQueueName(),
 					queues.getCapacity(), queues.getMaximumCapacity());
 		}
 		Path src = new Path(this.jarPath);
@@ -244,6 +241,7 @@ public class MOHA_KafkaStart {
 		Path dest = new Path(fs.getHomeDirectory(), pathSuffix);
 		fs.copyFromLocalFile(false, true, src, dest);
 		FileStatus destStatus = fs.getFileStatus(dest);
+		LOG.info("FileStatus ={}",destStatus.toString());
 
 		LocalResource jarResource = Records.newRecord(LocalResource.class);
 		jarResource.setResource(ConverterUtils.getYarnUrlFromPath(dest));
@@ -256,11 +254,12 @@ public class MOHA_KafkaStart {
 		LOG.info("Jar resource = {}", jarResource.toString());
 
 		Path kafkaSrc = new Path(this.kafkaLibsPath);
-		String pathSuffixkafka_tgz = appName + "/" + appId.getId() + "/" + mohaConf.getKafkaVersion() + ".tgz";
+		String pathSuffixkafka_tgz = appName + "/" + appId.getId() + "/" + appConf.getKafkaVersion() + ".tgz";
 		Path kafkaDest = new Path(fs.getHomeDirectory(), pathSuffixkafka_tgz);
 		fs.copyFromLocalFile(false, true, kafkaSrc, kafkaDest);
 
 		FileStatus kafkaStatus = fs.getFileLinkStatus(kafkaDest);
+		LOG.info("FileStatus ={}",kafkaStatus.toString());
 
 		Map<String, String> env = new HashMap<>();
 		String appJarDest = dest.toUri().toString();
@@ -281,20 +280,21 @@ public class MOHA_KafkaStart {
 		}
 
 		classPathEnv.append(File.pathSeparatorChar);
-		classPathEnv.append(mohaConf.getKafkaLibsDirs());
+		classPathEnv.append(appConf.getKafkaLibsDirs());
 		classPathEnv.append(File.pathSeparatorChar);
 		classPathEnv.append(Environment.CLASSPATH.$());
 		env.put("CLASSPATH", classPathEnv.toString());
 
-		env.put(MOHA_Properties.KAKFA_VERSION, mohaConf.getKafkaVersion());
-		env.put(MOHA_Properties.KAFKA_CLUSTER_ID, mohaConf.getKafkaClusterId());
-		env.put(MOHA_Properties.KAFKA_DEBUG_QUEUE_NAME, mohaConf.getDebugQueueName());
-		env.put(MOHA_Properties.KAFKA_DEBUG_ENABLE, mohaConf.getKafkaDebugEnable());
-		env.put(MOHA_Properties.MYSQL_DEBUG_ENABLE, mohaConf.getMysqlLogEnable());
-		env.put(MOHA_Properties.ZOOKEEPER_CONNECT, mohaConf.getZookeeperConnect());
-		env.put(MOHA_Properties.ZOOKEEPER_BOOTSTRAP_SERVER, mohaConf.getBootstrapServers());
+		env.put(MOHA_Properties.KAKFA_VERSION, appConf.getKafkaVersion());
+		env.put(MOHA_Properties.KAFKA_CLUSTER_ID, appConf.getKafkaClusterId());
+		env.put(MOHA_Properties.KAFKA_DEBUG_QUEUE_NAME, appConf.getDebugQueueName());
+		env.put(MOHA_Properties.KAFKA_DEBUG_ENABLE, appConf.getKafkaDebugEnable());
+		env.put(MOHA_Properties.MYSQL_DEBUG_ENABLE, appConf.getMysqlLogEnable());
+		env.put(MOHA_Properties.CONF_ZOOKEEPER_CONNECT, appConf.getZookeeperConnect());
+		env.put(MOHA_Properties.CONF_ZOOKEEPER_BOOTSTRAP_SERVER, appConf.getBootstrapServers());
 
-		LOG.info("Classpath = {}", classPathEnv.toString());
+		LOG.info("Environment = {}", env.toString());
+		
 		ApplicationSubmissionContext appContext = yarnClientApplication.getApplicationSubmissionContext();
 		appContext.setApplicationName(appName);
 
@@ -325,20 +325,70 @@ public class MOHA_KafkaStart {
 		LOG.info("Command to execute MOHA Manager = {}", command);
 
 		mhmContainer.setCommands(commands);
+		LOG.info("ContainerLaunchContext = {}", mhmContainer.toString());
 
 		Resource capability = Records.newRecord(Resource.class);
-		capability.setMemory(managerMemory);
+		capability.setMemory(managerMemory);	
+		LOG.info("Resource = {}", capability.toString());
+		
 		appContext.setResource(capability);
-		appContext.setAMContainerSpec(mhmContainer);
+		appContext.setAMContainerSpec(mhmContainer);		
+		
 
 		Priority pri = Records.newRecord(Priority.class);
 		pri.setPriority(priority);
-		appContext.setPriority(pri);
-		appContext.setQueue(queue);
-
-		LOG.info("MOHA Manager Container = {}", mhmContainer.toString());
+		appContext.setPriority(pri);		
+		LOG.info("Priority = {}", pri.toString());
+		
+		appContext.setQueue(queue);		
+		
 		yarnClient.submitApplication(appContext);
+		LOG.info("ApplicationSubmissionContext = {}", appContext.toString());
+		
+		
+		MOHA_Zookeeper zks = new MOHA_Zookeeper(MOHA_Client.class,
+				MOHA_Properties.ZOOKEEPER_ROOT_KAFKA , appId.toString());
+		
+		zks.createRoot();		
+		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_LOGS);		
+		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_STATUS);
+		
+		try {
+			Thread.sleep(1);
+		} catch (InterruptedException e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+		}
+		
+		zks.setStatus(true);
+		zks.setLogs("Submitting MOHA_KafkaManager -----------");
+		// Waiting for MOHA_Manager fully launched
+		try {
+			Thread.sleep(MOHA_Properties.MOHA_MANAGER_OVERHEAD);
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		// Checking MOHA_Manager status if it is running
+		while (zks.getStatus()) {
+			try {
+				zks.setStatus(false);
+				for (int i = 0; i < 10; i++) {
+					Thread.sleep(500);
+					String logs = zks.getLogs();
+					if (logs.length() > 0) {
+						System.out.println(logs);
+					}
+				}
 
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
+		zks.close();
+		LOG.info("Exit");
 		return true;
 	}// The end of run function
 

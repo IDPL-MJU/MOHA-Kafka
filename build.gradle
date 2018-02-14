@@ -22,6 +22,7 @@ dependencies {
 	//compile group: 'org.apache.kafka', name: 'kafka_2.11', version: '0.9.0.1'
     
 	compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.26'
+	compile group: 'org.apache.activemq', name: 'activemq-all', version: '5.11.0'
 
         
     testCompile group: 'junit', name: 'junit', version:'4.11'
@@ -32,6 +33,7 @@ dependencies {
 configurations {
     mysql
     kafka
+    activemq
 }
 
 dependencies {
@@ -39,6 +41,7 @@ dependencies {
 
     mysql group: 'mysql', name: 'mysql-connector-java', version: '5.1.26'
     kafka group: 'org.apache.kafka', name: 'kafka_2.11', version: '0.10.1.0'
+    activemq group: 'org.apache.activemq', name: 'activemq-all', version: '5.11.0'
     //kafka group: 'org.apache.kafka', name: 'kafka_2.11', version: '0.9.0.1'
 }
  
@@ -54,6 +57,7 @@ if (project.ext.properties.containsKey("archiveName")) {
     
 	 from configurations.mysql.collect { zipTree it }
 	 from configurations.kafka.collect { zipTree it }
+	 from configurations.activemq.collect { zipTree it }
     
     archiveName = "${project.ext.archiveName}"
     destinationDir = new File("${project.projectDir}")

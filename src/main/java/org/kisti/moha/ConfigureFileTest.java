@@ -1,15 +1,5 @@
 package org.kisti.moha;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.Properties;
-
-import org.apache.hadoop.fs.Path;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 public class ConfigureFileTest {
 	// private static final Logger LOG =
 	// LoggerFactory.getLogger(ConfigureFileTest.class);

@@ -43,7 +43,7 @@ public class MOHA_Manager {
 
 			for (ContainerStatus status : statuses) {
 				numCompletedContainers.incrementAndGet();
-				//LOG.debug(status.toString());
+				// LOG.debug(status.toString());
 			}
 		}
 
@@ -52,9 +52,8 @@ public class MOHA_Manager {
 			// TODO Auto-generated method stub
 
 			for (Container container : containers) {
-				LOG.all(container.toString());
-				ContainerLauncher launcher = new ContainerLauncher(container, numAllocatedContainers.getAndIncrement(),
-						containerListener);
+				//LOG.all(container.toString());
+				ContainerLauncher launcher = new ContainerLauncher(container, numAllocatedContainers.getAndIncrement(), containerListener);
 				Thread mhmThread = new Thread(launcher);
 				mhmThread.start();
 				launchThreads.add(mhmThread);
@@ -101,7 +100,7 @@ public class MOHA_Manager {
 	protected NMClientAsync nmClient;
 	private NMCallbackHandler containerListener;
 	private List<Thread> launchThreads = new ArrayList<>();
-	
+
 	private static MOHA_Logger LOG;
 	// private static String inputQueueName;
 
@@ -110,7 +109,7 @@ public class MOHA_Manager {
 
 	Vector<CharSequence> statistic = new Vector<>(30);
 
-	public MOHA_Manager(String[] args) throws IOException {	
+	public MOHA_Manager(String[] args) throws IOException {
 
 		setAppInfo(new MOHA_Info());
 		getAppInfo().setAppId(args[0]);
@@ -119,28 +118,28 @@ public class MOHA_Manager {
 		getAppInfo().setNumPartitions(getAppInfo().getNumExecutors());
 		getAppInfo().setStartingTime(Long.parseLong(args[3]));
 		getAppInfo().setQueueName(getAppInfo().getAppId());
-		
+
 		String zookeeperConnect = System.getenv(MOHA_Properties.KAFKA_ZOOKEEPER_CONNECT);
 		String bootstrapServer = System.getenv(MOHA_Properties.KAFKA_ZOOKEEPER_BOOTSTRAP_SERVER);
-		
+
 		LOG = new MOHA_Logger(MOHA_Manager.class, Boolean.parseBoolean(getAppInfo().getConf().getKafkaDebugEnable()),
-				getAppInfo().getConf().getDebugQueueName(),zookeeperConnect,
-				bootstrapServer, getAppInfo().getAppId());
+				getAppInfo().getConf().getDebugQueueName(), zookeeperConnect, bootstrapServer, getAppInfo().getAppId(), 1005);
+
 		LOG.register();
 
 		LOG.all("MOHA_Manager is started in " + InetAddress.getLocalHost().getHostAddress());
 
 		conf = new YarnConfiguration();
 		fileSystem = FileSystem.get(conf);
-		
+
 		LOG.debug(conf.toString());
 		LOG.debug(fileSystem.toString());
-		
+
 		for (int i = 0; i < args.length; i++) {
 			String str = args[i];
 			LOG.debug("args[" + i + "] : " + str);
 		}
-		
+
 		LOG.all(getAppInfo().toString());
 		db = new MOHA_Database(Boolean.parseBoolean(getAppInfo().getConf().getMysqlLogEnable()));
 		LOG.all(db.toString());
@@ -149,8 +148,7 @@ public class MOHA_Manager {
 
 	private void run() throws YarnException, IOException {
 
-		MOHA_Zookeeper zks = new MOHA_Zookeeper(MOHA_Manager.class,
-				MOHA_Properties.ZOOKEEPER_ROOT_MOHA , getAppInfo().getAppId());
+		MOHA_Zookeeper zks = new MOHA_Zookeeper(MOHA_Manager.class, MOHA_Properties.ZOOKEEPER_ROOT, getAppInfo().getAppId());
 		LOG.all(zks.toString());
 
 		amRMClient = AMRMClientAsync.createAMRMClientAsync(1000, new RMCallbackHandler());
@@ -173,84 +171,77 @@ public class MOHA_Manager {
 		// Request resources to launch containers
 		Resource capacity = Records.newRecord(Resource.class);
 		capacity.setMemory(getAppInfo().getExecutorMemory());
+		capacity.setVirtualCores(1);
 		Priority pri = Records.newRecord(Priority.class);
 		pri.setPriority(0);
-		
+
 		zks.setTimming(MOHA_Properties.TIMMING_INIT);
-		
+		zks.setPollingEnable(false);
+
 		for (int i = 0; i < getAppInfo().getNumExecutors(); i++) {
 
 			ContainerRequest containerRequest = new ContainerRequest(capacity, null, null, pri);
 			amRMClient.addContainerRequest(containerRequest);
 			numOfContainers++;
-			LOG.debug("ContainerRequest : " + containerRequest.toString());
+
+			LOG.debug("ContainerRequest" + containerRequest.toString());
+			LOG.debug("AMRMClientAsync.createAMRMClientAsync: " + amRMClient.toString());
 		}
-		
-		for(int i = 0;i<numOfContainers;i++){
-			zks.setReadyfor(i, MOHA_Properties.TIMMING_INIT);
-		}
-		while (!done && (numCompletedContainers.get() < numOfContainers)) {
+		long start_time = System.currentTimeMillis();
+		int numRunning = zks.getNumExecutorsRunning();
+		// Wait until all TaskExecutors are launched
+		while (!done && (zks.getNumExecutorsRunning() < numOfContainers)) {
+			if(zks.getNumExecutorsRunning() != numRunning){
+				numRunning = zks.getNumExecutorsRunning();
+				LOG.debug("Number of Task Executors running: " + numRunning + "/" + numOfContainers);				
+			}
+			
+			zks.setManagerRunning(true);
+			zks.setSystemTime(System.currentTimeMillis() - start_time);
 			try {
-				Thread.sleep(1000);
-				zks.setStatus(true);
+				Thread.sleep(100);
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+			if (zks.getStopRequest()) {
+				LOG.debug("Time out");
+				break;
+			}
 		}
-		/*
-		while (!done && (numCompletedContainers.get() < numOfContainers)) {
+		// Allow Task Executors to poll tasks for job queue and execute them
+		zks.setPollingEnable(true);
+		LOG.debug("Number of Task Executors running: " + zks.getNumExecutorsRunning() + "/" + numOfContainers);
+		int numCompleted = numCompletedContainers.get();
+		long startingTime = System.currentTimeMillis();
+		while (!zks.getStopRequest()) {
+			if (numCompletedContainers.get() != numCompleted) {
+				numCompleted = numCompletedContainers.get();
+				LOG.info("There are " + numCompletedContainers.get() + " per " + numOfContainers + " TaskExecutors have finished");
+			}
+			zks.setSystemTime(System.currentTimeMillis() - start_time);
+			zks.setManagerRunning(true);// send heart beat to MOHA Client
 			try {
-				Thread.sleep(1000);
-				// send heart beat to MOHA Client
-				zks.setStatus(true);
-				//LOG.debug("check request");
-				int numReadys = 0;
-				for(int i = 0;i<numOfContainers;i++){
-					if(zks.getReadyfor(i)==MOHA_Properties.TIMMING_PUSHING){
-						numReadys ++;
-					}
-				}
-				if(numReadys == numOfContainers){
-					zks.setTimming(MOHA_Properties.TIMMING_PUSHING);
-				}
-				
-				numReadys = 0;
-				for(int i = 0;i<numOfContainers;i++){
-					if(zks.getReadyfor(i)==MOHA_Properties.TIMMING_PUSHING_FINISH){
-						numReadys ++;
-					}
-				}
-				if(numReadys == numOfContainers){
-					zks.setTimming(MOHA_Properties.TIMMING_PUSHING_FINISH);
-				}
-				
-				numReadys = 0;
-				for(int i = 0;i<numOfContainers;i++){
-					if(zks.getReadyfor(i)==MOHA_Properties.TIMMING_FETCHING){
-						numReadys ++;
-					}
-				}
-				if(numReadys == numOfContainers){
-					zks.setTimming(MOHA_Properties.TIMMING_FETCHING);
-				}			
-				
-				numReadys = 0;
-				for(int i = 0;i<numOfContainers;i++){
-					if(zks.getReadyfor(i)==MOHA_Properties.TIMMING_FETCHING_FINISH){
-						numReadys ++;
-					}
-				}
-				if(numReadys == numOfContainers){
-					zks.setTimming(MOHA_Properties.TIMMING_FETCHING_FINISH);
-				}
-				
+				Thread.sleep(100);
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+			if((System.currentTimeMillis() - startingTime) > MOHA_Properties.SESSION_MAXTIME_TIMEOUT){
+				LOG.debug("Timeout");
+				zks.setStopRequest(true);
+				break;
+			}
 		}
-		*/
+
+		// Wait for completing Task Executors
+		try {
+			Thread.sleep(5000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		LOG.info("There are " + numCompletedContainers.get() + " per " + numOfContainers + " TaskExecutors have finished");
 
 		getAppInfo().setMakespan(System.currentTimeMillis() - getAppInfo().getStartingTime());
 
@@ -258,12 +249,13 @@ public class MOHA_Manager {
 		LOG.all("Application complete! Stop AMRMClientAsync and NMClientAsync, and unregisterApplicationMaster");
 
 		db.insertAppInfoToDababase(getAppInfo());
+		zks.setResultsApp(getAppInfo());
 		nmClient.stop();
 		amRMClient.unregisterApplicationMaster(FinalApplicationStatus.SUCCEEDED, "Application complete!", null);
 		amRMClient.stop();
-		
+
 		zks.close();
-		
+
 	}
 
 	public static void main(String[] args) {
@@ -301,11 +293,11 @@ public class MOHA_Manager {
 			this.container = container;
 			this.containerListener = containerListener;
 			this.id = id;
-			//LOG.debug(this.toString());
+			// LOG.debug(this.toString());
 		}
 
 		private String getLaunchCommand(Container container, int id) {
-			
+
 			Vector<CharSequence> vargs = new Vector<>(30);
 			vargs.add(Environment.JAVA_HOME.$() + "/bin/java");
 			vargs.add(MOHA_TaskExecutor.class.getName());
@@ -327,7 +319,7 @@ public class MOHA_Manager {
 
 		@Override
 		public void run() {
-			
+
 			Map<String, LocalResource> localResources = new HashMap<>();
 			Map<String, String> env = System.getenv();
 			LocalResource appJarFile = Records.newRecord(LocalResource.class);
@@ -342,38 +334,42 @@ public class MOHA_Manager {
 			appJarFile.setTimestamp(Long.valueOf((env.get(MOHA_Properties.APP_JAR_TIMESTAMP))));
 			appJarFile.setSize(Long.valueOf(env.get(MOHA_Properties.APP_JAR_SIZE)));
 
-			LOG.debug(appJarFile.toString());
+			//LOG.debug(appJarFile.toString());
 			localResources.put("app.jar", appJarFile);
-			
+
 			// Setting moha dependencies package
-			LocalResource mohaPackage = Records.newRecord(LocalResource.class);
-			mohaPackage.setType(LocalResourceType.ARCHIVE);
-			mohaPackage.setVisibility(LocalResourceVisibility.APPLICATION);
-			try {
-				mohaPackage.setResource(ConverterUtils.getYarnUrlFromURI(new URI(env.get(MOHA_Properties.MOHA_TGZ))));
-			} catch (URISyntaxException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+			String appType = System.getenv(MOHA_Properties.APP_TYPE);
+			if(appType.equals("S")){
+				LocalResource mohaPackage = Records.newRecord(LocalResource.class);
+				mohaPackage.setType(LocalResourceType.ARCHIVE);
+				mohaPackage.setVisibility(LocalResourceVisibility.APPLICATION);
+				try {
+					mohaPackage.setResource(ConverterUtils.getYarnUrlFromURI(new URI(env.get(MOHA_Properties.MOHA_TGZ))));
+				} catch (URISyntaxException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+				mohaPackage.setTimestamp(Long.valueOf((env.get(MOHA_Properties.MOHA_TGZ_TIMESTAMP))));
+				mohaPackage.setSize(Long.valueOf(env.get(MOHA_Properties.MOHA_TGZ_SIZE)));
+				localResources.put(MOHA_Properties.EXECUTABLE_DIR, mohaPackage);				
 			}
-			mohaPackage.setTimestamp(Long.valueOf((env.get(MOHA_Properties.MOHA_TGZ_TIMESTAMP))));
-			mohaPackage.setSize(Long.valueOf(env.get(MOHA_Properties.MOHA_TGZ_SIZE)));
-			localResources.put(MOHA_Properties.EXECUTABLE_DIR, mohaPackage);
+
 
 			ContainerLaunchContext context = Records.newRecord(ContainerLaunchContext.class);
 			context.setEnvironment(env);
 			context.setLocalResources(localResources);
 
 			String command = getLaunchCommand(container, this.id);
-			LOG.all("command = " + command);
+			//LOG.all("command = " + command);
 			List<String> commands = new ArrayList<>();
 			commands.add(command);
 			context.setCommands(commands);
 
 			nmClient.startContainerAsync(container, context);
-			LOG.debug(container.toString());
-			LOG.debug(context.toString());
-			LOG.debug(nmClient.toString());
+			//LOG.debug(container.toString());
+			//LOG.debug(context.toString());
+			//LOG.debug(nmClient.toString());
 		}
 	}
-
 }

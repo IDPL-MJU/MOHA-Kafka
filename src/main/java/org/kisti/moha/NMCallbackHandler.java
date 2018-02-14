@@ -23,7 +23,7 @@ public class NMCallbackHandler implements NMClientAsync.CallbackHandler {
 	public NMCallbackHandler(MOHA_Manager applicationMaster) {
 		this.mohaManager = applicationMaster;
 		debugLogger = new MOHA_Logger(NMCallbackHandler.class,Boolean.parseBoolean(mohaManager.getAppInfo().getConf().getKafkaDebugEnable()),
-				mohaManager.getAppInfo().getConf().getDebugQueueName());
+				mohaManager.getAppInfo().getConf().getDebugQueueName(),1005);
 
 		
 	}

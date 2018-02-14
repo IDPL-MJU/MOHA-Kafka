@@ -18,6 +18,9 @@ public class MOHA_Configuration {
 	private String kafkaDebugEnable;
 	private String zookeeperConnect;
 	private String bootstrapServers;
+	private String zookeeperServer;
+	private String queueType;
+	private String activemqServer;
 
 	public String getZookeeperConnect() {
 		return zookeeperConnect;
@@ -49,6 +52,9 @@ public class MOHA_Configuration {
 			setEnableMysqlLog(prop.getProperty("MOHA.mysql.log.enable", "false"));
 			setBootstrapServers(prop.getProperty("MOHA.zookeeper.bootstrap.servers", "localhost:9092"));
 			setZookeeperConnect(prop.getProperty("MOHA.zookeeper.connect", "localhost:2181"));
+			setZookeeperServer(prop.getProperty("MOHA.zookeeper.server.address", "localhost"));
+			setQueueType(prop.getProperty("MOHA.queue.type", "kafka"));
+			setActivemqServer(prop.getProperty("MOHA.queue.activemq.server", "hdp01.kisti.re.kr"));
 
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
@@ -67,23 +73,23 @@ public class MOHA_Configuration {
 
 		init();
 
-		if (getenv.containsKey(MOHA_Properties.KAKFA_VERSION)) {
-			setKafkaVersion(getenv.get(MOHA_Properties.KAKFA_VERSION));
+		if (getenv.containsKey(MOHA_Properties.CONF_KAKFA_VERSION)) {
+			setKafkaVersion(getenv.get(MOHA_Properties.CONF_KAKFA_VERSION));
 		}
-		if (getenv.containsKey(MOHA_Properties.KAFKA_CLUSTER_ID)) {
-			setKafkaClusterId(getenv.get(MOHA_Properties.KAFKA_CLUSTER_ID));
-		}
-
-		if (getenv.containsKey(MOHA_Properties.KAFKA_DEBUG_ENABLE)) {
-			setEnableKafkaDebug(getenv.get(MOHA_Properties.KAFKA_DEBUG_ENABLE));
+		if (getenv.containsKey(MOHA_Properties.CONF_KAFKA_CLUSTER_ID)) {
+			setKafkaClusterId(getenv.get(MOHA_Properties.CONF_KAFKA_CLUSTER_ID));
 		}
 
-		if (getenv.containsKey(MOHA_Properties.KAFKA_DEBUG_QUEUE_NAME)) {
-			setDebugQueueName(getenv.get(MOHA_Properties.KAFKA_DEBUG_QUEUE_NAME));
+		if (getenv.containsKey(MOHA_Properties.CONF_KAFKA_DEBUG_ENABLE)) {
+			setEnableKafkaDebug(getenv.get(MOHA_Properties.CONF_KAFKA_DEBUG_ENABLE));
 		}
 
-		if (getenv.containsKey(MOHA_Properties.MYSQL_DEBUG_ENABLE)) {
-			setEnableMysqlLog(getenv.get(MOHA_Properties.MYSQL_DEBUG_ENABLE));
+		if (getenv.containsKey(MOHA_Properties.CONF_KAFKA_DEBUG_QUEUE_NAME)) {
+			setDebugQueueName(getenv.get(MOHA_Properties.CONF_KAFKA_DEBUG_QUEUE_NAME));
+		}
+
+		if (getenv.containsKey(MOHA_Properties.CONF_MYSQL_DEBUG_ENABLE)) {
+			setEnableMysqlLog(getenv.get(MOHA_Properties.CONF_MYSQL_DEBUG_ENABLE));
 		}
 
 		if (getenv.containsKey(MOHA_Properties.CONF_ZOOKEEPER_CONNECT)) {
@@ -91,6 +97,18 @@ public class MOHA_Configuration {
 		}
 		if (getenv.containsKey(MOHA_Properties.CONF_ZOOKEEPER_BOOTSTRAP_SERVER)) {
 			setBootstrapServers(getenv.get(MOHA_Properties.CONF_ZOOKEEPER_BOOTSTRAP_SERVER));
+		}
+		
+		if (getenv.containsKey(MOHA_Properties.CONF_ZOOKEEPER_SERVER)) {
+			setZookeeperServer(getenv.get(MOHA_Properties.CONF_ZOOKEEPER_SERVER));
+		}
+		
+		if (getenv.containsKey(MOHA_Properties.CONF_QUEUE_TYPE)) {
+			setZookeeperServer(getenv.get(MOHA_Properties.CONF_QUEUE_TYPE));
+		}
+		
+		if (getenv.containsKey(MOHA_Properties.CONF_ACTIVEMQ_SERVER)) {
+			setActivemqServer(getenv.get(MOHA_Properties.CONF_ACTIVEMQ_SERVER));
 		}
 
 	}
@@ -105,6 +123,9 @@ public class MOHA_Configuration {
 		setEnableMysqlLog("false");
 		setZookeeperConnect("localhost:2181");
 		setBootstrapServers("localhost:9092");
+		setZookeeperServer("localhost");
+		setQueueType("kafka");
+		setActivemqServer("hdp01.kisti.re.kr");
 	}
 
 	@Override
@@ -124,6 +145,8 @@ public class MOHA_Configuration {
 		conf.add(getDebugQueueName());
 		conf.add(getKafkaDebugEnable());
 		conf.add(getMysqlLogEnable());
+		conf.add(getZookeeperServer());
+		conf.add(getQueueType());
 		return conf;
 	}
 
@@ -173,5 +196,29 @@ public class MOHA_Configuration {
 
 	public void setDebugQueueName(String debugQueueName) {
 		this.debugQueueName = debugQueueName;
+	}
+
+	public String getZookeeperServer() {
+		return zookeeperServer;
+	}
+
+	public void setZookeeperServer(String zookeeperServer) {
+		this.zookeeperServer = zookeeperServer;
+	}
+
+	public String getQueueType() {
+		return queueType;
+	}
+
+	public void setQueueType(String queueType) {
+		this.queueType = queueType;
+	}
+
+	public String getActivemqServer() {
+		return activemqServer;
+	}
+
+	public void setActivemqServer(String activemqServer) {
+		this.activemqServer = activemqServer;
 	};
 }

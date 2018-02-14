@@ -14,6 +14,7 @@ public class MOHA_ExecutorInfo {
 	private String queueName;
 	private int pushingTime;
 	private long pushingRate;
+	private long waitingTime;
 	
 	public long getPushingRate() {
 		return pushingRate;
@@ -23,7 +24,7 @@ public class MOHA_ExecutorInfo {
 		this.pushingRate = pushingRate;
 	}
 
-	public long getPollingRate() {
+	public double getPollingRate() {
 		return pollingRate;
 	}
 
@@ -31,7 +32,7 @@ public class MOHA_ExecutorInfo {
 		this.pollingRate = pollingRate;
 	}
 
-	private long pollingRate;
+	private double pollingRate;
 	public int getPushingTime() {
 		return pushingTime;
 	}
@@ -85,7 +86,7 @@ public class MOHA_ExecutorInfo {
 
 	}
 
-	public int getPollingTime() {
+	public int getNumOfPolls() {
 		return pollingTime;
 	}
 
@@ -157,6 +158,14 @@ public class MOHA_ExecutorInfo {
 
 	public void setQueueName(String queueName) {
 		this.queueName = queueName;
+	}
+
+	public long getWaitingTime() {
+		return waitingTime;
+	}
+
+	public void setWaitingTime(long waitingTime) {
+		this.waitingTime = waitingTime;
 	}
 
 }

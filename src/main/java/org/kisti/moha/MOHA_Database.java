@@ -74,7 +74,7 @@ public class MOHA_Database {
 				+ eInfo.getAppId() + "\"" + ",\"" + eInfo.getExecutorId() + "\"" + ",\"" + eInfo.getContainerId() + "\""
 				+ ",\"" + eInfo.getHostname() + "\"" + ",\"" + MOHA_Common.convertLongToDate(eInfo.getLaunchedTime())
 				+ "\"" + "," + eInfo.getNumExecutedTasks() + "," + eInfo.getExecutionTime() + ","+ eInfo.getPushingRate() + ","+ eInfo.getPollingRate() + ","
-				+ eInfo.getLaunchedTime() + "," + eInfo.getFirstMessageTime() + "," + eInfo.getPollingTime() + ","
+				+ eInfo.getLaunchedTime() + "," + eInfo.getFirstMessageTime() + "," + eInfo.getNumOfPolls() + ","
 				+ eInfo.getEndingTime() + ")";
 
 		runCommand(sql);

@@ -141,7 +141,7 @@ public class MOHA_KafkaStart {
 		}
 
 		// [UPDATE] Add default values for options
-		appName = inputParser.getOptionValue("appname", "KAFKA_Cluster_Builder");
+		appName = inputParser.getOptionValue("appname", "KAFKA");
 		priority = Integer.parseInt(inputParser.getOptionValue("priority", "0"));
 		queue = inputParser.getOptionValue("queue", "default");
 		managerMemory = Integer.parseInt(inputParser.getOptionValue("manager_memory", "1024"));
@@ -215,6 +215,7 @@ public class MOHA_KafkaStart {
 		YarnClientApplication yarnClientApplication = yarnClient.createApplication();
 		GetNewApplicationResponse appResponse = yarnClientApplication.getNewApplicationResponse();
 		appId = appResponse.getApplicationId();
+		String rootDir = appName + "/" + appId.getId();
 
 		LOG.info("Application ID = {}", appId);
 		int maxMemory = appResponse.getMaximumResourceCapability().getMemory();
@@ -285,13 +286,14 @@ public class MOHA_KafkaStart {
 		classPathEnv.append(Environment.CLASSPATH.$());
 		env.put("CLASSPATH", classPathEnv.toString());
 
-		env.put(MOHA_Properties.KAKFA_VERSION, appConf.getKafkaVersion());
-		env.put(MOHA_Properties.KAFKA_CLUSTER_ID, appConf.getKafkaClusterId());
-		env.put(MOHA_Properties.KAFKA_DEBUG_QUEUE_NAME, appConf.getDebugQueueName());
-		env.put(MOHA_Properties.KAFKA_DEBUG_ENABLE, appConf.getKafkaDebugEnable());
-		env.put(MOHA_Properties.MYSQL_DEBUG_ENABLE, appConf.getMysqlLogEnable());
+		env.put(MOHA_Properties.CONF_KAKFA_VERSION, appConf.getKafkaVersion());
+		env.put(MOHA_Properties.CONF_KAFKA_CLUSTER_ID, appConf.getKafkaClusterId());
+		env.put(MOHA_Properties.CONF_KAFKA_DEBUG_QUEUE_NAME, appConf.getDebugQueueName());
+		env.put(MOHA_Properties.CONF_KAFKA_DEBUG_ENABLE, appConf.getKafkaDebugEnable());
+		env.put(MOHA_Properties.CONF_MYSQL_DEBUG_ENABLE, appConf.getMysqlLogEnable());
 		env.put(MOHA_Properties.CONF_ZOOKEEPER_CONNECT, appConf.getZookeeperConnect());
 		env.put(MOHA_Properties.CONF_ZOOKEEPER_BOOTSTRAP_SERVER, appConf.getBootstrapServers());
+		env.put(MOHA_Properties.CONF_ZOOKEEPER_SERVER, appConf.getZookeeperServer());
 
 		LOG.info("Environment = {}", env.toString());
 		
@@ -342,16 +344,21 @@ public class MOHA_KafkaStart {
 		
 		appContext.setQueue(queue);		
 		
-		yarnClient.submitApplication(appContext);
-		LOG.info("ApplicationSubmissionContext = {}", appContext.toString());
-		
 		
 		MOHA_Zookeeper zks = new MOHA_Zookeeper(MOHA_Client.class,
-				MOHA_Properties.ZOOKEEPER_ROOT_KAFKA , appId.toString());
+				MOHA_Properties.ZOOKEEPER_ROOT , appId.toString());
 		
-		zks.createRoot();		
+		zks.createZooKafka();//Create "kafka_cluster" directory in zookeeper
+		zks.createRoot();		// root + appId directory
 		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_LOGS);		
 		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_STATUS);
+		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_RESULTS_APP_LOG);
+		zks.createDirs(MOHA_Properties.ZOOKEEPER_DIR_RESULTS_EXE_LOG);
+		zks.setManagerRunning(true);
+		zks.setLogs(1001,"Submitting MOHA_KafkaManager -----------");
+		
+		yarnClient.submitApplication(appContext);
+		LOG.info("ApplicationSubmissionContext = {}", appContext.toString());
 		
 		try {
 			Thread.sleep(1);
@@ -360,8 +367,7 @@ public class MOHA_KafkaStart {
 			e2.printStackTrace();
 		}
 		
-		zks.setStatus(true);
-		zks.setLogs("Submitting MOHA_KafkaManager -----------");
+		
 		// Waiting for MOHA_Manager fully launched
 		try {
 			Thread.sleep(MOHA_Properties.MOHA_MANAGER_OVERHEAD);
@@ -370,24 +376,31 @@ public class MOHA_KafkaStart {
 			e1.printStackTrace();
 		}
 		// Checking MOHA_Manager status if it is running
-		while (zks.getStatus()) {
+		while (zks.isManagerRunning()) {
+			//zks.setLogs("Check status from kafka mangager");
 			try {
-				zks.setStatus(false);
-				for (int i = 0; i < 10; i++) {
-					Thread.sleep(500);
+				zks.setManagerRunning(false);
+				for (int i = 0; i < 100; i++) {
+					Thread.sleep(30);
 					String logs = zks.getLogs();
 					if (logs.length() > 0) {
 						System.out.println(logs);
 					}
 				}
-
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-
 		}
+		//delete THE application and KAFKA directory
+		zks.delete(zks.getRoot());
+		zks.delete("/"+ MOHA_Properties.ZOOKEEPER_ROOT +"/"+appConf.getKafkaClusterId());
 		zks.close();
+		
+		//fs.delete(new Path(fs.getHomeDirectory(), appName), true);
+		fs.delete(new Path(rootDir), true);	
+		fs.close();
+		
 		LOG.info("Exit");
 		return true;
 	}// The end of run function

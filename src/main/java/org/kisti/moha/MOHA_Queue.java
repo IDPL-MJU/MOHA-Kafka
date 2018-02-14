@@ -5,8 +5,21 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
+import javax.jms.Connection;
+import javax.jms.DeliveryMode;
+import javax.jms.Destination;
+import javax.jms.ExceptionListener;
+import javax.jms.JMSException;
+import javax.jms.Message;
+import javax.jms.MessageConsumer;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import javax.jms.TextMessage;
+
 import org.I0Itec.zkclient.ZkClient;
 import org.I0Itec.zkclient.ZkConnection;
+import org.apache.activemq.ActiveMQConnectionFactory;
+import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -32,39 +45,72 @@ public class MOHA_Queue {
 	private ZkConnection zkConnection;
 
 	private ZkUtils zkUtils;
-	private KafkaConsumer<String, String> consumer;
-	private Producer<String, String> producer;
+	private KafkaConsumer<String, String> kafkaConsumer;
+	private Producer<String, String> kafkaProducer;
 
 	private String queueName;
 	private String bootstrapServers;
 	private String zookeeperConnect;
 
+	private String activeMQHost;
+	Destination activeMQDestination;
+	Session activeMQSession;
+	Connection activeMQConnection;
+	MessageProducer activeMQProducer;
+	MessageConsumer activeMQConsumer;
+	Message activeMQMessage;
+	// MessageConsumer consumer;
+
+	boolean isKafka = false;
+	@Override
+	public String toString() {
+		return "MOHA_Queue [sessionTimeout=" + sessionTimeout + ", connectionTimeout=" + connectionTimeout + ", zkClient=" + zkClient + ", zkConnection=" + zkConnection + ", zkUtils=" + zkUtils
+				+ ", kafkaConsumer=" + kafkaConsumer + ", kafkaProducer=" + kafkaProducer + ", queueName=" + queueName + ", bootstrapServers=" + bootstrapServers + ", zookeeperConnect="
+				+ zookeeperConnect + ", activeMQHost=" + activeMQHost + ", activeMQDestination=" + activeMQDestination + ", activeMQSession=" + activeMQSession + ", activeMQConnection="
+				+ activeMQConnection + ", activeMQProducer=" + activeMQProducer + ", activeMQConsumer=" + activeMQConsumer + ", activeMQMessage=" + activeMQMessage + ", isKafka=" + isKafka
+				+ ", isActiveMQ=" + isActiveMQ + "]";
+	}
+
+	boolean isActiveMQ = false;
+
+	public MOHA_Queue(String host, String queueName) {
+		this.activeMQHost = host;
+		this.queueName = queueName;
+		this.isActiveMQ = true;
+		LOG.info(this.toString());
+	}
+
 	public MOHA_Queue(String zookeeperConnect, String bootstrapServers, String queueName) {
 		this.zookeeperConnect = zookeeperConnect;
 		this.bootstrapServers = bootstrapServers;
 		this.queueName = queueName;
+		this.isKafka = true;
 		LOG.info(this.toString());
 	}
 
-	@Override
-	public String toString() {
-		return "MOHA_Queue [sessionTimeout=" + sessionTimeout + ", connectionTimeout=" + connectionTimeout
-				+ ", zkClient=" + zkClient + ", zkConnection=" + zkConnection + ", zkUtils=" + zkUtils + ", consumer="
-				+ consumer + ", producer=" + producer + ", queueName=" + queueName + ", bootstrapServers="
-				+ bootstrapServers + ", zookeeperConnect=" + zookeeperConnect + "]";
+	public Message activeMQPoll(int timeout) {
+		try {
+
+			// Wait for a message
+			activeMQMessage = activeMQConsumer.receive(timeout);
+			//System.out.println("message:  " + message);
+			return activeMQMessage;
+		} catch (JMSException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return null;
 	}
 
 	// Create queue
-	public boolean create(int numPartitions, int numReplicationFactor) {
-
-		zkClient = ZkUtils$.MODULE$.createZkClient(zookeeperConnect, sessionTimeout, connectionTimeout);
-		zkConnection = new ZkConnection(zookeeperConnect, sessionTimeout);
-		zkUtils = new ZkUtils(zkClient, zkConnection, false);
-		//for 0.10.1.0
-		AdminUtils.createTopic(zkUtils, queueName, numPartitions, numReplicationFactor, new Properties(), null);
-		
-		
-		//AdminUtils.createTopic(zkUtils, queueName, numPartitions, numReplicationFactor, new Properties());
+	public boolean queueCreate(int numPartitions, int numReplicationFactor) {
+		if (isKafka) {
+			zkClient = ZkUtils$.MODULE$.createZkClient(zookeeperConnect, sessionTimeout, connectionTimeout);
+			zkConnection = new ZkConnection(zookeeperConnect, sessionTimeout);
+			zkUtils = new ZkUtils(zkClient, zkConnection, false);
+			// for 0.10.1.0
+			AdminUtils.createTopic(zkUtils, queueName, numPartitions, numReplicationFactor, new Properties(), null);
+		}
 
 		return true;
 
@@ -72,146 +118,216 @@ public class MOHA_Queue {
 
 	// Delete queue
 	public boolean deleteQueue() {
-		AdminUtils.deleteTopic(zkUtils, queueName);
+		if (isKafka) {
+			AdminUtils.deleteTopic(zkUtils, queueName);
+		}
 		return true;
 	}
 
 	// Register to push messages to queue
-	public boolean register() {
-		
-		/*
-		LOG.info("bootstramservers = {}", bootstrapServers);
-		Properties props = new Properties();
-		props.put("bootstrap.servers", bootstrapServers);
+	public boolean producerInit() {
 
-		props.put("acks", "all");
-		props.put("retries", 0);
-		props.put("batch.size", 16384);
-		props.put("linger.ms", 1);
-		props.put("buffer.memory", 33554432);
-		props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-		props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-*/
-		Properties props = new Properties();
-		 props.put("bootstrap.servers", bootstrapServers);
-		 props.put("acks", "all");
-		 props.put("retries", 0);
-		 props.put("batch.size", 16384);
-		 props.put("linger.ms", 1);
-		 props.put("buffer.memory", 33554432);
-		 props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-		 props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-		 
-		producer = new KafkaProducer<>(props);
-		return true;
-	}
+		if (isKafka) {
+			Properties props = new Properties();
+			props.put("bootstrap.servers", bootstrapServers);
 
-	public boolean unregister() {
-		producer.close();
+			props.put("acks", "all");
+			props.put("retries", 0);
+			props.put("batch.size", 16384);
+			props.put("linger.ms", 1);
+			props.put("buffer.memory", 33554432);
+			props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+			props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
 
+			kafkaProducer = new KafkaProducer<>(props);
+
+		} else if (isActiveMQ) {
+			// Create a ConnectionFactory
+			//ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory("nio://hdp01.kisti.re.kr:61616");
+			ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory("nio://" + activeMQHost);
+
+			// Create a Connection
+
+			try {
+				activeMQConnection = connectionFactory.createConnection();
+				activeMQConnection.start();
+
+				// Create a Session
+				activeMQSession = activeMQConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+				// Create the destination (Topic or Queue)
+				activeMQDestination = activeMQSession.createQueue(queueName + "ACTIVE.MQ");
+
+				// Create a MessageProducer from the Session to the Topic or
+				// Queue
+				activeMQProducer = activeMQSession.createProducer(activeMQDestination);
+				activeMQProducer.setDeliveryMode(DeliveryMode.PERSISTENT);
+			} catch (JMSException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+			// Create a messages
+		}
 		return true;
 	}
 
 	public boolean commitSync() {
-		consumer.commitSync();
+		if (isKafka) {
+			kafkaConsumer.commitSync();
+		}
 		return true;
 	}
 
 	// Subscribe to poll messages from queue
-	public boolean subcribe() {
-		//Properties props = new Properties();
-		// int fetch_size = 64;
+	public boolean consumerInit() {
 
-		// props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-		// props.put(ConsumerConfig.GROUP_ID_CONFIG, queueName);
-		// props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-		// props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
-		// props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "30000");
-		// props.put("request.timeout.ms", "40000");
-		//
-		// //props.put("max.partition.fetch.bytes", String.valueOf(fetch_size));
-		// props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-		// props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
-		// "org.apache.kafka.common.serialization.IntegerDeserializer");
-		// props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-		// "org.apache.kafka.common.serialization.StringDeserializer");
-/*(
-		props.put("bootstrap.servers", bootstrapServers);
-		
-		//for testing
-		props.put("group.id", queueName); 
-		props.put("enable.auto.commit", "false");
-		props.put("auto.commit.interval.ms", "1000");
-		props.put("session.timeout.ms", "10000");
-		props.put("request.timeout.ms", "40000");
-		//props.put("max.partition.fetch.bytes", String.valueOf(2*1024));
-		//props.put("max.poll.records", "1000000");
-		props.put("auto.offset.reset", "earliest");
-		props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-		props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-*/
-		Properties props = new Properties();
-//	    props.put("bootstrap.servers", bootstrapServers);
-//	    props.put("group.id", queueName);
-//	    props.put("enable.auto.commit", "false");
-//	    props.put("auto.commit.interval.ms", "1000");
-//	    props.put("auto.offset.reset", "earliest");
-//	    
-//	    props.put("max.partition.fetch.bytes", String.valueOf(100*1024));
-//	    
-//	    props.put("session.timeout.ms", "30000");
-//	    props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-//	    props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-		
-		props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-		props.put("request.timeout.ms", "400000");
-		props.put("max.poll.records", "1");
-		props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-		props.put(ConsumerConfig.GROUP_ID_CONFIG, queueName);
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
-        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "300000");
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
-		
-		
-	    consumer = new KafkaConsumer<>(props);
-	    
-	    consumer.subscribe(Collections.singletonList(queueName));
-	    
-	     LOG.info("queue name = {}",queueName);
+		if (isKafka) {
+			Properties props = new Properties();
+
+			props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+			props.put("request.timeout.ms", "400000");
+			props.put("max.poll.records", "1");
+			props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+			props.put(ConsumerConfig.GROUP_ID_CONFIG, queueName);
+			props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+			props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
+			props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "300000");
+			props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+			props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+
+			kafkaConsumer = new KafkaConsumer<>(props);
+
+			kafkaConsumer.subscribe(Collections.singletonList(queueName));
+		} else if (isActiveMQ) {
+			// Create a ConnectionFactory
+			//ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory("nio://hdp01.kisti.re.kr:61616");
+			ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory("nio://"+activeMQHost);
+			System.out.println("connectionFactory:  " + connectionFactory);
+			// Create a Connection
+			Connection connection;
+			try {
+				connection = connectionFactory.createConnection();
+				connection.start();
+
+				// connection.setExceptionListener((ExceptionListener) this);
+
+				// Create a Session
+				activeMQSession = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+				System.out.println("session:  " + activeMQSession);
+				// Create the destination (Topic or Queue)
+				//Destination destination = activeMQSession.createQueue(queueName + "ACTIVE.MQ");
+				//System.out.println("destination:  " + destination);
+				
+				Destination destination = new ActiveMQQueue(queueName + "ACTIVE.MQ" + "?"+"consumer.prefetchSize=1");
+				
+				// Create a MessageConsumer from the Session to the Topic or Queue
+				activeMQConsumer = activeMQSession.createConsumer(destination);
+				System.out.println("consumer:  " + activeMQConsumer);
+			} catch (JMSException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
+
+		LOG.info("queue name = {}", queueName);
 		return true;
 	}
 
 	public boolean close() {
-		consumer.close();
+		if (isKafka) {
+			if (kafkaConsumer != null) {
+				kafkaConsumer.close();
+			}
+			if (kafkaProducer != null) {
+				kafkaProducer.close();
+			}
+
+		} else if (isActiveMQ) {
+			try {
+				if (activeMQSession != null)
+					activeMQSession.close();
+				if (activeMQConnection != null)
+					activeMQConnection.close();
+				if (activeMQConsumer != null)
+					activeMQConsumer.close();
+			} catch (JMSException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+		}
 
 		return true;
 	}
 
-	public String push(String key, String messages) {
-		producer.send(new ProducerRecord<String, String>(queueName, key, messages));		
-		return messages;
-	}
-	
-	public List<PartitionInfo> partitionsFor(){
-		return producer.partitionsFor(queueName);
-	}
-
 	public String push(String messages) {
-		producer.send(new ProducerRecord<String, String>(queueName, "0", messages));
+		if (isKafka) {
+			kafkaProducer.send(new ProducerRecord<String, String>(queueName, "0", messages));
+		} else if (isActiveMQ) {
+
+			try {
+
+				TextMessage message = activeMQSession.createTextMessage(messages);
+
+				// Tell the producer to send the message
+				System.out.println("Sent message: " + message + " : " + Thread.currentThread().getName());
+				activeMQProducer.send(message);
+
+				// Clean up
+
+			} catch (JMSException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 		return messages;
 	}
 
-	public ConsumerRecords<String, String> poll(int timeOut) {		
-		ConsumerRecords<String, String> records = consumer.poll(timeOut);		
-		return records;
+	public String push(String index, String messages) {
+		if (isKafka) {
+			kafkaProducer.send(new ProducerRecord<String, String>(queueName, index, messages));
+		} else if (isActiveMQ) {
+			try {
+				// Create a messages
+				TextMessage message = activeMQSession.createTextMessage(messages);
+				activeMQProducer.send(message);
+				//System.out.println(messages.toString());
+			} catch (JMSException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				System.out.println(e.toString());
+			}
+		}
+		return messages;
 	}
-	public Set<TopicPartition> assignment(){
-		return consumer.assignment();
+
+	public ConsumerRecords<String, String> poll(int timeOut) {
+		if (isKafka) {
+			ConsumerRecords<String, String> records = kafkaConsumer.poll(timeOut);
+			return records;
+		}
+
+		return null;
 	}
-	public List<PartitionInfo> cPartitionsFor(){
-		return consumer.partitionsFor(queueName);
+
+	public Set<TopicPartition> assignment() {
+		if (isKafka) {
+			return kafkaConsumer.assignment();
+		}
+		return null;
 	}
-	
+
+	public List<PartitionInfo> partitionsFor() {
+		if (isKafka) {
+			return kafkaConsumer.partitionsFor(queueName);
+		}
+		return null;
+	}
+
+	public boolean isKafka() {
+		return isKafka;
+	}
+
 }

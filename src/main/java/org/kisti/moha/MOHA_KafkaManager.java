@@ -32,6 +32,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 import org.apache.hadoop.yarn.util.Records;
+import org.mortbay.log.Log;
 
 public class MOHA_KafkaManager {
 	public class RMCallbackHandler implements CallbackHandler {
@@ -52,8 +53,7 @@ public class MOHA_KafkaManager {
 
 			for (Container container : containers) {
 
-				ContainerLauncher launcher = new ContainerLauncher(container, numAllocatedContainers.getAndIncrement(),
-						containerListener);
+				ContainerLauncher launcher = new ContainerLauncher(container, numAllocatedContainers.getAndIncrement(), containerListener);
 				Thread mhmThread = new Thread(launcher);
 				mhmThread.start();
 				launchThreads.add(mhmThread);
@@ -111,9 +111,6 @@ public class MOHA_KafkaManager {
 
 		conf = new YarnConfiguration();
 		fileSystem = FileSystem.get(conf);
-		for (String str : args) {
-
-		}
 
 		setKafkaInfo(new MOHA_KafkaInfo());
 
@@ -124,59 +121,82 @@ public class MOHA_KafkaManager {
 
 		getKafkaInfo().setNumPartitions(getKafkaInfo().getNumBrokers());
 
-		debugLogger = new MOHA_Logger(MOHA_KafkaManager.class,
-				Boolean.parseBoolean(getKafkaInfo().getConf().getKafkaDebugEnable()),
-				getKafkaInfo().getConf().getDebugQueueName());
+		debugLogger = new MOHA_Logger(MOHA_KafkaManager.class, Boolean.parseBoolean(getKafkaInfo().getConf().getKafkaDebugEnable()),
+				getKafkaInfo().getConf().getDebugQueueName(), getKafkaInfo().getAppId(),1004);
 
-		zkconnect = new MOHA_Zookeeper(MOHA_Manager.class, MOHA_Properties.ZOOKEEPER_ROOT_KAFKA,
-				getKafkaInfo().getAppId());
+		zkconnect = new MOHA_Zookeeper(MOHA_Manager.class, MOHA_Properties.ZOOKEEPER_ROOT, getKafkaInfo().getAppId());
+		for (String str : args) {
+			debugLogger.info(str);
+		}
 
 		debugLogger.debug(getKafkaInfo().getConf().toString());
-		debugLogger.debug("MOHA_KafkaManager");
+		debugLogger.debug("MOHA_KafkaManager Started");
 		debugLogger.debug(getKafkaInfo().toString());
 
 	}
 
 	public void run() throws YarnException, IOException {
-
+		debugLogger.debug("createAMRMClientAsync, hostname:" + NetUtils.getHostname());
 		amRMClient = AMRMClientAsync.createAMRMClientAsync(1000, new RMCallbackHandler());
 		amRMClient.init(conf);
 
+		debugLogger.debug("AMRMClientAsync.createAMRMClientAsync: " + amRMClient.toString());
+
+		debugLogger.debug("amRMClient.start");
 		amRMClient.start();
 		RegisterApplicationMasterResponse response;
 		response = amRMClient.registerApplicationMaster(NetUtils.getHostname(), -1, "");
+		debugLogger.info("RegisterApplicationMasterResponse: " + response.toString());
 
+		debugLogger.debug("KBCallbackHandler");
 		containerListener = new KBCallbackHandler(this);
 		nmClient = NMClientAsync.createNMClientAsync(containerListener);
 		nmClient.init(conf);
 		nmClient.start();
 
+		debugLogger.info("NMClientAsync.createNMClientAsync: " + nmClient.toString());
+
 		getKafkaInfo().setAllocationTime(System.currentTimeMillis());
 		// request resources to launch containers
 		Resource capacity = Records.newRecord(Resource.class);
 		capacity.setMemory(getKafkaInfo().getBrokerMem());
+		capacity.setVirtualCores(8);// added
 		Priority pri = Records.newRecord(Priority.class);
 		pri.setPriority(0);
 
 		for (int i = 0; i < getKafkaInfo().getNumBrokers(); i++) {
-
 			ContainerRequest containerRequest = new ContainerRequest(capacity, null, null, pri);
 			amRMClient.addContainerRequest(containerRequest);
 			numOfContainers++;
+			debugLogger.debug("ContainerRequest" + containerRequest.toString());
+			debugLogger.debug("AMRMClientAsync.createAMRMClientAsync: " + amRMClient.toString());
+		}		
+		int numCompleted = 0;
+		int numAllocated = 0;
+		while(numAllocatedContainers.get() < numOfContainers) {
+			if(numAllocatedContainers.get() != numAllocated){
+				numAllocated = numAllocatedContainers.get();
+				debugLogger.debug("Number of Kakfa Brokers is running: " + numAllocated);
+			}
+			
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
-
-		try {
-			Thread.sleep(1000);
-
-		} catch (InterruptedException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
+		debugLogger.debug("Number of Kakfa Brokers is running: " + numAllocatedContainers.get());		
+		
 		while (!done && (numCompletedContainers.get() < numOfContainers)) {
-
+			
+			if(numCompletedContainers.get() != numCompleted){
+				numCompleted = numCompletedContainers.get();
+				debugLogger.debug("There are  " + numAllocatedContainers.get() + "/" + numCompleted + "Kafka Brokers running");
+			}
 			try {
 				// Send heart beat to client
-				zkconnect.setStatus(true);
+				zkconnect.setManagerRunning(true);
 				Thread.sleep(1000);
 
 			} catch (InterruptedException e) {
@@ -184,7 +204,8 @@ public class MOHA_KafkaManager {
 				e.printStackTrace();
 			}
 		}
-
+		zkconnect.setManagerRunning(true);
+		debugLogger.debug("Kafka manager is going to be ended");
 		getKafkaInfo().setMakespan(System.currentTimeMillis() - getKafkaInfo().getStartingTime());
 		debugLogger.debug("setMakespan");
 
@@ -251,7 +272,9 @@ public class MOHA_KafkaManager {
 			for (CharSequence str : vargs) {
 				command.append(str).append(" ");
 			}
+			System.out.println("Command: " + command.toString());
 			return command.toString();
+			// return "cal";
 		}
 
 		@Override
@@ -294,9 +317,11 @@ public class MOHA_KafkaManager {
 			List<String> commands = new ArrayList<>();
 			commands.add(command);
 			context.setCommands(commands);
-
+			System.out.println("nmClient.startContainerAsync(container, context);");
 			nmClient.startContainerAsync(container, context);
-
+			System.out.println("Container: " + container.toString());
+			System.out.println("context: " + context.toString());
+			System.out.println("End----------------------------------------------------");
 		}
 	}
 

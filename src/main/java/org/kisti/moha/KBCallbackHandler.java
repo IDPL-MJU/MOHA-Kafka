@@ -24,7 +24,7 @@ public class KBCallbackHandler implements NMClientAsync.CallbackHandler {
 		this.mohaManager = applicationMaster;
 		debugLogger = new MOHA_Logger(KBCallbackHandler.class,
 				Boolean.parseBoolean(applicationMaster.getKafkaInfo().getConf().getKafkaDebugEnable()),
-				applicationMaster.getKafkaInfo().getConf().getDebugQueueName());
+				applicationMaster.getKafkaInfo().getConf().getDebugQueueName(),1002);
 
 		
 	}

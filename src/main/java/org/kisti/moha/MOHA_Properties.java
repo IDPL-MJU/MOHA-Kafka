@@ -62,5 +62,6 @@ public interface MOHA_Properties {
 	public static final long SESSION_MAXTIME_TIMEOUT = 20*60*60*1000;
 	public static final String HDFS_HOME_DIRECTORY = "hdfs_home_directory";
 	public static final String APP_TYPE = "APP_TYPE";
+	public static final String ZOOKEEPER_DIR_LOCAL_RESOURCE = "local_resource";
 	
 }

@@ -20,6 +20,7 @@ import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.util.SequentialNumber;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -517,13 +518,15 @@ public class MOHA_TaskExecutor {
 
 	}
 
-	private void docking_run(String record) {
+	private boolean executeTask(String record) {
 
 		Configuration conf = new Configuration();
 		FileSystem fs = null;
 		ProcessBuilder builder;
 		Process p;
 		String cliResponse;
+		boolean isSuccess = true;
+
 		long begin;
 
 		try {
@@ -534,7 +537,7 @@ public class MOHA_TaskExecutor {
 		}
 
 		String hdfsHomeDirectory = System.getenv(MOHA_Properties.HDFS_HOME_DIRECTORY);
-		LOG.all("records:" + record);
+		LOG.all("TaskExecutor [" + info.getExecutorId() + "] records:" + record);
 		begin = System.currentTimeMillis();
 		String[] command_compo = record.split(" ");
 		for (int i = 0; i < command_compo.length - 1; i++) {
@@ -556,7 +559,7 @@ public class MOHA_TaskExecutor {
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
-					LOG.all(" copyToLocalFile error: " + e.toString());
+					LOG.all("TaskExecutor [" + info.getExecutorId() + "] copyToLocalFile error: " + e.toString());
 				}
 			}
 		}
@@ -569,11 +572,11 @@ public class MOHA_TaskExecutor {
 			p.waitFor();
 			BufferedReader buffReader = new BufferedReader(new InputStreamReader(p.getInputStream()));
 			while ((cliResponse = buffReader.readLine()) != null) {
-				// LOG.debug(cliResponse);
+				LOG.debug("TaskExecutor [" + info.getExecutorId() + "]   " + cliResponse);
 			}
 		} catch (IOException | InterruptedException e) {
 			// TODO Auto-generated catch block
-			LOG.all(" copyToLocalFile error: " + e.toString());
+			LOG.all("TaskExecutor [" + info.getExecutorId() + "] copyToLocalFile error: " + e.toString());
 			/*
 			 * Copy all files from executable directory to current directory
 			 */
@@ -588,13 +591,14 @@ public class MOHA_TaskExecutor {
 			}
 
 			e.printStackTrace();
+			isSuccess = false;
 		}
 
 		// File curDir = new File(".");
 		// getAllFiles(curDir);
 		tempDockingTime = System.currentTimeMillis() - begin;
 		LOG.all("TaskExecutor [" + info.getExecutorId() + "][" + record + "] Execution time " + tempDockingTime);
-
+		return isSuccess;
 	}
 
 	private void run() {
@@ -630,11 +634,65 @@ public class MOHA_TaskExecutor {
 		 */
 		if (appType.equals("S")) {
 			File[] listFiles = new File(MOHA_Properties.EXECUTABLE_DIR).listFiles();
-			for (File file : listFiles) {
-				if (file.isFile()) {
-					file.renameTo(new File(file.getName()));
-					// file.delete();
-					LOG.debug("TaskExecutor [" + info.getExecutorId() + "] copy file: " + file.getName());
+			LOG.debug("TaskExecutor [" + info.getExecutorId() + "] number of files: " + listFiles.length);
+			// Hadoop resource localization fail
+			if (listFiles.length == 0) {
+				LOG.all("TaskExecutor [" + info.getExecutorId() + "] is running on " + info.getHostname() + " resource localization fail ");
+				String localResource = zkServer.getLocalResource();
+				// LOG.debug("TaskExecutor [" + info.getExecutorId() + "] localResource: " + localResource);
+				// String hdfsHomeDirectory = System.getenv(MOHA_Properties.HDFS_HOME_DIRECTORY);
+				Path srcPath = new Path(localResource);
+				Path dstPath = new Path("run.tgz");
+				Configuration conf = new Configuration();
+				FileSystem fs = null;
+
+				try {
+					fs = FileSystem.get(conf);
+					fs.copyToLocalFile(srcPath, dstPath);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					LOG.all(" copyToLocalFile error: " + e.toString());
+				}
+				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Start uncompressing the tar file");
+				getAllFiles(info.getExecutorId(), new File("."));
+				/* Uncompress tar file to tmp folder */
+				List<String> uncompressCommand = new ArrayList<String>();
+				uncompressCommand.add("tar");
+				uncompressCommand.add("-xvzf");
+				uncompressCommand.add("run.tgz");
+				// uncompressCommand.add("-C");
+				// uncompressCommand.add(MOHA_Properties.EXECUTABLE_DIR);
+				LOG.debug(uncompressCommand.toString());
+				ProcessBuilder builder = new ProcessBuilder(uncompressCommand);
+				Process p;
+				String cliResponse;
+
+				try {
+					p = builder.start();
+					p.waitFor();
+					BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+					while ((cliResponse = br.readLine()) != null) {
+						LOG.debug("TaskExecutor [" + info.getExecutorId() + "] local resource files: " + cliResponse);
+					}
+				} catch (IOException | InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+
+				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] after uncompress: ");
+				getAllFiles(info.getExecutorId(), new File("."));
+			} else {
+				LOG.all("TaskExecutor [" + info.getExecutorId() + "] is running on " + info.getHostname() + " resource localization success");
+				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Start copying files from exe to current directory");
+
+				listFiles = new File(MOHA_Properties.EXECUTABLE_DIR).listFiles();
+				for (File file : listFiles) {
+					if (file.isFile()) {
+						file.renameTo(new File(file.getName()));
+						// file.delete();
+						LOG.debug("TaskExecutor [" + info.getExecutorId() + "] copy file: " + file.getName());
+					}
 				}
 			}
 		}
@@ -656,6 +714,7 @@ public class MOHA_TaskExecutor {
 		capturing_time = zkServer.getSystemTime();
 		int num = 0;
 		boolean isUpdated = false;
+		boolean isProcessingSuccess = true;
 		/* Polling first jobs from job queue */
 		boolean isStop = zkServer.getStopRequest();
 		LOG.all("TaskExecutor [" + info.getExecutorId() + "]:" + jobQueue.toString());
@@ -670,7 +729,7 @@ public class MOHA_TaskExecutor {
 
 				if (appType.equals("S")) {
 					for (ConsumerRecord<String, String> record : records) {
-						docking_run(record.value());
+						isProcessingSuccess = executeTask(record.value());
 					}
 				} else {
 					for (ConsumerRecord<String, String> record : records) {
@@ -687,7 +746,7 @@ public class MOHA_TaskExecutor {
 						try {
 							text = textMessage.getText();
 							if (appType.equals("S")) {
-								docking_run(text);
+								isProcessingSuccess = executeTask(text);
 							}
 
 							// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + text);
@@ -697,7 +756,7 @@ public class MOHA_TaskExecutor {
 						}
 					} else {
 						if (appType.equals("S")) {
-							docking_run(msg.toString());
+							isProcessingSuccess = executeTask(msg.toString());
 						}
 						// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + msg);
 					}
@@ -762,6 +821,7 @@ public class MOHA_TaskExecutor {
 				}
 
 			} else {
+				/* Log data every one second */
 				if ((systemCurrentTime - capturing_time) > 1000) {
 					double pollingRate = (double) (numOfCommands - numOfCommands_pre) / (double) ((systemCurrentTime - capturing_time) / 1000);
 
@@ -781,6 +841,13 @@ public class MOHA_TaskExecutor {
 				zkServer.setNumOfProcessedTasks(info.getExecutorId(), numOfCommands);
 				zkServer.setStopRequest(true);
 				LOG.all("TaskExecutor [" + info.getExecutorId() + "] timeout");
+				break;
+			}
+
+			if (!isProcessingSuccess) {
+				zkServer.setTimeComplete(zkServer.getSystemTime());
+				zkServer.setNumOfProcessedTasks(info.getExecutorId(), numOfCommands);
+				LOG.all("TaskExecutor [" + info.getExecutorId() + "] get errors during execution");
 				break;
 			}
 
@@ -806,22 +873,98 @@ public class MOHA_TaskExecutor {
 		zkServer.setPerformanceExe(info.getExecutorId(), logs);
 		zkServer.close();
 		LOG.info(database.toString());
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] exists");
+		LOG.all("TaskExecutor [" + info.getExecutorId() + "] exits");
 		jobQueue.close();
 	}
 
-	private static void getAllFiles(File curDir) {
+	protected class ThreadTaskExecutor implements Runnable {
+
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			LOG.debug("TaskExecutor [" + info.getExecutorId() + "] starts polling and processing jobs got from the job queue");
+			/*
+			 * Construct zookeeper server which is used to inform number of completed tasks to MOHA Client
+			 */						
+			String appType = System.getenv(MOHA_Properties.APP_TYPE);
+
+			LOG.debug("TaskExecutor [" + info.getExecutorId() + "] SUBCRIBE TO THE JOB QUEUE");
+			/* Subscribe to the job queue to be allowed polling task input files */
+			jobQueue.consumerInit();			
+
+			/* Polling first jobs from job queue */
+			LOG.all("TaskExecutor [" + info.getExecutorId() + "]:" + jobQueue.toString());
+			
+			boolean isProcessingSuccess = false;
+			int num = 0;
+			while (info.getNumRunningThreads() <= info.getNumRequestedThreads()) {
+				/* Polling tasks from job queue */
+				if (jobQueue.isKafka()) {
+					/*
+					 * if(numOfCommands <1000000){ num = 1; }else{ num = 0; }
+					 */
+					ConsumerRecords<String, String> records = jobQueue.poll(100);
+					num = records.count();
+
+					if (appType.equals("S")) {
+						for (ConsumerRecord<String, String> record : records) {
+							isProcessingSuccess = executeTask(record.value());
+						}
+					} else {
+						for (ConsumerRecord<String, String> record : records) {
+							// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + record.value());
+						}
+					}
+
+				} else {
+					Message msg = jobQueue.activeMQPoll(100);
+					if (msg != null) {
+						if (msg instanceof TextMessage) {
+							TextMessage textMessage = (TextMessage) msg;
+							String text;
+							try {
+								text = textMessage.getText();
+								if (appType.equals("S")) {
+									isProcessingSuccess = executeTask(text);
+								}
+
+								// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + text);
+							} catch (JMSException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+						} else {
+							if (appType.equals("S")) {
+								isProcessingSuccess = executeTask(msg.toString());
+							}
+							// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + msg);
+						}
+						num = 1;
+					} else {
+						num = 0;
+						break;
+					}
+				}				
+				info.setNumExecutedTasks(info.getNumExecutedTasks() + num);
+				if(!isProcessingSuccess)break;
+			}
+			
+			info.setNumRunningThreads(info.getNumRunningThreads() - 1);
+		}
+
+	}
+
+	private static void getAllFiles(int executorId, File curDir) {
 
 		File[] filesList = curDir.listFiles();
 
 		for (File f : filesList) {
-
 			if (f.isDirectory()) {
-				LOG.debug("Directory " + f.getName());
-				getAllFiles(f);
+				LOG.debug("TaskExecutor [" + executorId + "] Directory " + f.getName());
+				getAllFiles(executorId, f);
 			}
 			if (f.isFile()) {
-				LOG.debug(curDir.getPath() + "/" + f.getName());
+				LOG.debug("TaskExecutor [" + executorId + "] Files: " + curDir.getPath() + "/" + f.getName());
 			}
 		}
 

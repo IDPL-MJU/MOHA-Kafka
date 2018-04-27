@@ -160,7 +160,7 @@ public class MOHA_Zookeeper {
 
 	public void createDirsFull(String path) {
 		String path_ = path;
-		LOG.info("createDirs:" + path_);
+		//LOG.info("createDirs:" + path_);
 		if (zkserver != null) {
 
 			try {
@@ -925,6 +925,67 @@ public class MOHA_Zookeeper {
 				System.out.println("Interrupted exception");
 			}
 		}
+
+	}
+	
+	public void setLocalResource(String name) {
+
+		String rootDirs = dirs.getRoot();
+		String requestDirs = dirs.getPath(MOHA_Properties.ZOOKEEPER_DIR_LOCAL_RESOURCE);
+
+		if (zkserver != null) {
+			try {
+				Stat root = zkserver.exists(rootDirs, false);
+				if (root == null) {
+					LOG.info("Zookeeper Broker is not running yet. Root directory: " + rootDirs);
+					LOG.info("setRequests() fail");
+					return;
+				} else {
+					Stat s = zkserver.exists(requestDirs, false);
+					if (s == null) {
+						LOG.info("Creating a znode for request");
+						zkserver.create(requestDirs, new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+
+					}
+					zkserver.setData(requestDirs, name.getBytes(), -1);
+					
+				}
+
+			} catch (KeeperException e) {
+				System.out.println("Keeper exception when instantiating queue: " + e.toString());
+			} catch (InterruptedException e) {
+				System.out.println("Interrupted exception");
+			}
+		}
+
+	}
+	
+	public String getLocalResource() {
+
+		LOG.info("Get local resource");
+
+		String rootDirs = dirs.getRoot();
+		String requestDirs = dirs.getPath(MOHA_Properties.ZOOKEEPER_DIR_LOCAL_RESOURCE);
+
+		if (zkserver != null) {
+			try {
+				if (zkserver.exists(rootDirs, false) != null) {
+					if (zkserver.exists(requestDirs, false) != null) {
+						String localResource = new String(zkserver.getData(requestDirs, false, null));
+
+						//LOG.info("requestDirs = {} rqInfo ------------------------- = {}", requestDirs, rqInfo);
+
+						return localResource;
+
+					}
+				}
+			} catch (KeeperException | InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+		return "";
 
 	}
 

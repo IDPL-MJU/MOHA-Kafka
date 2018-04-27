@@ -15,6 +15,8 @@ public class MOHA_ExecutorInfo {
 	private int pushingTime;
 	private long pushingRate;
 	private long waitingTime;
+	private int numRequestedThreads;
+	private int numRunningThreads;
 	
 	public long getPushingRate() {
 		return pushingRate;
@@ -166,6 +168,22 @@ public class MOHA_ExecutorInfo {
 
 	public void setWaitingTime(long waitingTime) {
 		this.waitingTime = waitingTime;
+	}
+
+	public int getNumRequestedThreads() {
+		return numRequestedThreads;
+	}
+
+	public void setNumRequestedThreads(int numRequestedThreads) {
+		this.numRequestedThreads = numRequestedThreads;
+	}
+
+	public int getNumRunningThreads() {
+		return numRunningThreads;
+	}
+
+	public void setNumRunningThreads(int numRunningThreads) {
+		this.numRunningThreads = numRunningThreads;
 	}
 
 }

@@ -126,6 +126,7 @@ public class MOHA_Logger {
 	}
 
 	public void debug(String msg) {
+		//info("[ERROR]: " + msg);
 		info(msg);
 		queue(msg);
 	}

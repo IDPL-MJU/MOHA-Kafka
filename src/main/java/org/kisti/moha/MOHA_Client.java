@@ -262,6 +262,7 @@ public class MOHA_Client {
 		appId = appResponse.getApplicationId();
 
 		rootDir = appName + "/" + appId;
+		String hdfsLocalResoure = "";
 
 		zookeeperConnect = mohaConf.getZookeeperConnect() + "/" + MOHA_Properties.ZOOKEEPER_ROOT + "/" + mohaConf.getKafkaClusterId();
 		bootstrapServer = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT, mohaConf.getKafkaClusterId()).getBootstrapServers();
@@ -331,6 +332,7 @@ public class MOHA_Client {
 		env.put(MOHA_Properties.APP_JAR, jarDest.toUri().toString());
 		env.put(MOHA_Properties.APP_JAR_TIMESTAMP, Long.toString(jarDestStatus.getModificationTime()));
 		env.put(MOHA_Properties.APP_JAR_SIZE, Long.toString(jarDestStatus.getLen()));
+		
 
 		if (appType.equals("S")) {
 			Path mohaAppSrc = new Path(appDependencyFiles);
@@ -339,6 +341,7 @@ public class MOHA_Client {
 			fs.copyFromLocalFile(false, true, mohaAppSrc, appDependencyDest);
 			FileStatus userAppStatus = fs.getFileLinkStatus(appDependencyDest);
 			LOG.info("FileStatus ={}", userAppStatus.toString());
+			hdfsLocalResoure = appDependencyDest.toUri().toString();
 
 			env.put(MOHA_Properties.MOHA_TGZ, appDependencyDest.toUri().toString());
 			env.put(MOHA_Properties.MOHA_TGZ_TIMESTAMP, Long.toString(userAppStatus.getModificationTime()));
@@ -431,7 +434,8 @@ public class MOHA_Client {
 		ApplicationId appId = yarnClient.submitApplication(appContext);
 		LOG.info("Submit Application - AppID = {}", appId.toString());
 		LOG.info("zookeeperConnect = {} bootstrapServer = {}", zookeeperConnect, bootstrapServer);
-
+		
+		zks.setLocalResource(hdfsLocalResoure);
 		zks.setManagerRunning(true);
 		zks.setStopRequest(false);
 
@@ -517,7 +521,7 @@ public class MOHA_Client {
 
 		logs = zks.getPerformanceExe();
 		if (logs.length() > 0) {
-			System.out.println(logs);
+			//System.out.println(logs);
 		}
 
 		try {

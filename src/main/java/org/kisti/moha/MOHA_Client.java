@@ -264,8 +264,10 @@ public class MOHA_Client {
 		rootDir = appName + "/" + appId;
 		String hdfsLocalResoure = "";
 
-		zookeeperConnect = mohaConf.getZookeeperConnect() + "/" + MOHA_Properties.ZOOKEEPER_ROOT + "/" + mohaConf.getKafkaClusterId();
-		bootstrapServer = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT, mohaConf.getKafkaClusterId()).getBootstrapServers();
+		if (mohaConf.getQueueType().equals("kafka")) {
+			zookeeperConnect = mohaConf.getZookeeperConnect() + "/" + MOHA_Properties.ZOOKEEPER_ROOT + "/" + mohaConf.getKafkaClusterId();
+			bootstrapServer = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT, mohaConf.getKafkaClusterId()).getBootstrapServers();
+		}		
 
 		/* Insert tasks to job queue */
 		TasksPushing tasksToQueue = new TasksPushing();
@@ -370,11 +372,14 @@ public class MOHA_Client {
 		env.put(MOHA_Properties.CONF_ZOOKEEPER_SERVER, mohaConf.getZookeeperServer());
 		env.put(MOHA_Properties.CONF_QUEUE_TYPE, mohaConf.getQueueType());
 		env.put(MOHA_Properties.CONF_ACTIVEMQ_SERVER, mohaConf.getActivemqServer());
-		env.put(MOHA_Properties.KAFKA_ZOOKEEPER_CONNECT, zookeeperConnect);
-		env.put(MOHA_Properties.KAFKA_ZOOKEEPER_BOOTSTRAP_SERVER, bootstrapServer);
+		
 		env.put(MOHA_Properties.HDFS_HOME_DIRECTORY, fs.getHomeDirectory().toString());
-		env.put(MOHA_Properties.APP_TYPE, appType);
-
+		env.put(MOHA_Properties.APP_TYPE, appType);		
+		
+		if (mohaConf.getQueueType().equals("kafka")) {
+			env.put(MOHA_Properties.KAFKA_ZOOKEEPER_CONNECT, zookeeperConnect);
+			env.put(MOHA_Properties.KAFKA_ZOOKEEPER_BOOTSTRAP_SERVER, bootstrapServer);
+		}
 		try {
 			setEnv(env);
 		} catch (Exception e3) {
@@ -420,20 +425,22 @@ public class MOHA_Client {
 		appContext.setPriority(pri);
 		appContext.setQueue(queue);
 
+		
 		while(!pushingFinish){
 			try {
-				Thread.sleep(100);
+				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
+		
 		/* Submits the application */
 
 		//LOG.info("MOHA Manager Container = {}", managerContainer.toString());
 		ApplicationId appId = yarnClient.submitApplication(appContext);
 		LOG.info("Submit Application - AppID = {}", appId.toString());
-		LOG.info("zookeeperConnect = {} bootstrapServer = {}", zookeeperConnect, bootstrapServer);
+		//LOG.info("zookeeperConnect = {} bootstrapServer = {}", zookeeperConnect, bootstrapServer);
 		
 		zks.setLocalResource(hdfsLocalResoure);
 		zks.setManagerRunning(true);
@@ -601,7 +608,7 @@ public class MOHA_Client {
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
-
+			System.out.println("Start pushing tasks to the job queue");
 			if (mohaConf.getQueueType().equals("kafka")) {
 				jobQueue = new MOHA_Queue(zookeeperConnect, bootstrapServer, appId.toString());
 			} else {
@@ -611,9 +618,10 @@ public class MOHA_Client {
 			jobQueue.queueCreate(numExecutors, 1);
 
 			jobQueue.producerInit();
-
+			
 			/* Push task commands to the queue */
 			long starting_time = System.currentTimeMillis();
+			
 
 			try {
 				fileReader = new FileReader(jdlPath);
@@ -651,13 +659,26 @@ public class MOHA_Client {
 					appDependencyFiles = buff.readLine();
 					String command_description = null;
 					// Copy all input files in the folder to HDFS
+					LOG.info("Start copying local files to HDFS");
 					for (int i = 0; i < directories.size(); i++) {
 						// copyFolderToHDFS(directory.get(i), rootDir);
 						Path local_source = new Path(directories.get(i));
 						Path hdfs_dest = new Path(fs.getHomeDirectory(), rootDir + "/" + directories.get(i));
 						fs.copyFromLocalFile(false, true, local_source, hdfs_dest);
+						LOG.info("Copying local files to HDFS " + directories.get(i));
 					}
-
+					pushingFinish = true;
+					
+					
+					double time = (double) (System.currentTimeMillis() - starting_time) / 1000;
+					System.out.println("Copying to HDFS time: " + time + " seconds");
+					
+					LOG.info("Start sending commands to Task Executors");			
+					
+					
+					/* Push task commands to the queue */
+					starting_time = System.currentTimeMillis();
+					
 					if (directories.size() == 2) {
 						List<String[]> file_array = new ArrayList<String[]>();
 
@@ -693,7 +714,7 @@ public class MOHA_Client {
 											}
 										}
 										command_description += shell_command;
-										System.out.println("Command send to Task Executor: " + command_description);
+										//System.out.println("Command send to Task Executor: " + command_description);
 										jobQueue.push(Integer.toString(q_index), command_description);
 										q_index++;
 										numCommands++;
@@ -751,7 +772,7 @@ public class MOHA_Client {
 			double pushing_performance = (double) numCommands * 1000 / (double) (System.currentTimeMillis() - starting_time);
 			double seconds = (double) (System.currentTimeMillis() - starting_time) / 1000;
 			System.out.println("Pushing performance: " + pushing_performance + " (tasks/second) on " + seconds + " seconds");
-			pushingFinish = true;
+			
 			return;
 		}
 

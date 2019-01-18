@@ -209,6 +209,7 @@ public class MOHA_Manager {
 				break;
 			}
 		}
+		zks.setStopRequest(false);
 		// Allow Task Executors to poll tasks for job queue and execute them
 		zks.setPollingEnable(true);
 		LOG.debug("Number of Task Executors running: " + zks.getNumExecutorsRunning() + "/" + numOfContainers);
@@ -232,7 +233,10 @@ public class MOHA_Manager {
 				zks.setStopRequest(true);
 				break;
 			}
+			//LOG.info("working -------------------------------------");
 		}
+		
+		//LOG.info("out -------------------------------------");
 
 		// Wait for completing Task Executors
 		try {

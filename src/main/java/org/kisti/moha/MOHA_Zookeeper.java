@@ -914,8 +914,10 @@ public class MOHA_Zookeeper {
 
 					if (stop) {
 						zkserver.setData(requestDirs, "True".getBytes(), -1);
+						//LOG.info("set stop requrest true");
 					} else {
 						zkserver.setData(requestDirs, "False".getBytes(), -1);
+						//LOG.info("set stop requrest false");
 					}
 				}
 
@@ -1003,7 +1005,7 @@ public class MOHA_Zookeeper {
 						String rqInfo = new String(zkserver.getData(requestDirs, false, null));
 
 						//LOG.info("requestDirs = {} rqInfo ------------------------- = {}", requestDirs, rqInfo);
-
+						//LOG.info("true or false:" + rqInfo);
 						return Boolean.parseBoolean(rqInfo);
 
 					}
@@ -1013,7 +1015,7 @@ public class MOHA_Zookeeper {
 				e.printStackTrace();
 			}
 		}
-
+		//LOG.info("true by default");
 		return true;
 
 	}

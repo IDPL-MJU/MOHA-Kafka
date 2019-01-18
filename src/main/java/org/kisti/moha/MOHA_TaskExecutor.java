@@ -30,12 +30,10 @@ import org.apache.kafka.common.TopicPartition;
 public class MOHA_TaskExecutor {
 
 	private YarnConfiguration conf;
-	private static MOHA_Queue jobQueue;
+	// private static MOHA_Queue jobQueue;
 	private static MOHA_Logger LOG;
-	private MOHA_ExecutorInfo info;
+	private volatile MOHA_ExecutorInfo info;
 	private MOHA_Database database;
-	private long tempDockingTime;
-
 	public MOHA_TaskExecutor(String[] args) throws IOException {
 		// TODO Auto-generated constructor stub
 		/* Save input parameters */
@@ -49,7 +47,6 @@ public class MOHA_TaskExecutor {
 
 		String zookeeperConnect = System.getenv(MOHA_Properties.KAFKA_ZOOKEEPER_CONNECT);
 		String bootstrapServer = System.getenv(MOHA_Properties.KAFKA_ZOOKEEPER_BOOTSTRAP_SERVER);
-		String queueType = System.getenv(MOHA_Properties.CONF_QUEUE_TYPE);
 
 		LOG = new MOHA_Logger(MOHA_TaskExecutor.class, Boolean.parseBoolean(info.getConf().getKafkaDebugEnable()), info.getConf().getDebugQueueName(), zookeeperConnect, bootstrapServer,
 				info.getAppId(), info.getExecutorId());
@@ -68,11 +65,7 @@ public class MOHA_TaskExecutor {
 		// String bootstrapServer = new
 		// MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT_KAFKA,
 		// info.getConf().getKafkaClusterId()).getBootstrapServers();
-		if (queueType.equals("kafka")) {
-			jobQueue = new MOHA_Queue(zookeeperConnect, bootstrapServer, info.getQueueName());
-		} else {
-			jobQueue = new MOHA_Queue(System.getenv(MOHA_Properties.CONF_ACTIVEMQ_SERVER), info.getQueueName());
-		}
+
 		// jobQueue = new MOHA_Queue(zookeeperConnect, bootstrapServer,
 		// info.getQueueName());
 
@@ -85,7 +78,8 @@ public class MOHA_TaskExecutor {
 		System.out.println("Container just started on {}" + NetUtils.getHostname());
 		try {
 			MOHA_TaskExecutor executor = new MOHA_TaskExecutor(args);
-			executor.run();
+			// executor.run();
+			executor.main_thread();
 			// executor.KOHA_run();
 
 		} catch (IOException e) {
@@ -95,273 +89,7 @@ public class MOHA_TaskExecutor {
 
 	}
 
-	private void KOHA_producer(int num, String msg) {
-		/* Creating a queue and pushing jobs to the queue */
-		jobQueue.producerInit();
-		// add padding
-		// LOG.all("TaskExecutor [" + info.getExecutorId() + "] adds padding");
-
-		MOHA_Zookeeper zks = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT, info.getAppId());
-		// ready for pushing
-		// for (int i = 0; i < num*1; i++) {
-		// jobQueue.push(Integer.toString(i), msg);
-		// }
-		// zks.setPollingEnable(info.getExecutorId(),
-		// MOHA_Properties.TIMMING_PUSHING);
-
-		// LOG.all("TaskExecutor [" + info.getExecutorId() + "] is ready");
-		while (zks.getTimming() != MOHA_Properties.TIMMING_PUSHING) {
-			// wait for start
-			// for (int i = 0; i < num; i++) {
-			// jobQueue.push(Integer.toString(i), msg);
-			// }
-			try {
-				Thread.sleep(10);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-
-		// calculate
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] starts actual pushing");
-		long startTime = System.currentTimeMillis();
-
-		for (int i = 0; i < num; i++) {
-			// jobQueue.push(Integer.toString(i), msg);
-		}
-		long pushingTime = (System.currentTimeMillis() - startTime);
-		long rate = (num / pushingTime) * 1000;
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] have pushed " + String.valueOf(num) + " (messages) in " + String.valueOf(pushingTime) + " mini seconds and speed is "
-				+ String.valueOf(rate) + " messages/second");
-		info.setPushingRate(rate);// messages per second
-
-		// add padding
-		// LOG.all("TaskExecutor [" + info.getExecutorId() + "] keeps padding");
-
-		/// zks.setPollingEnable(info.getExecutorId(),
-		/// MOHA_Properties.TIMMING_PUSHING_FINISH);
-
-		while (zks.getTimming() != MOHA_Properties.TIMMING_PUSHING_FINISH) {
-			try {
-				Thread.sleep(10);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			// for (int i = 0; i < num; i++) {
-			// jobQueue.push(Integer.toString(i), msg);
-			// }
-		}
-
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] producer stops");
-	}
-
-	private void KOHA_consumer(int number) {
-		long startTime = System.currentTimeMillis();
-		long expiredTime = System.currentTimeMillis() + 10 * 1;
-
-		long pollingTime = 0;
-		Boolean found = false;
-		int num = 0;
-		ConsumerRecords<String, String> records;
-		MOHA_Zookeeper zks = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT, info.getAppId());
-		num = 0;
-		// LOG.all("TaskExecutor [" + info.getExecutorId() + "] adds padding for
-		// fetching");
-		jobQueue.consumerInit();
-		while (zks.getTimming() != MOHA_Properties.TIMMING_FETCHING) {
-			for (int i = 0; i < 10; i++) {
-				records = jobQueue.poll(100);
-
-				num += records.count();
-			}
-			if (!found && (num > number)) {
-				LOG.all("TaskExecutor [" + info.getExecutorId() + "] got first message");
-				// zks.setPollingEnable(info.getExecutorId(),
-				// MOHA_Properties.TIMMING_FETCHING);
-				found = true;
-			}
-
-		}
-		// start
-		// ......................................................................................................
-
-		num = 0;
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] starts for actual fetching");
-		startTime = System.currentTimeMillis();
-		while (num < number) {
-
-			records = jobQueue.poll(100);
-
-			if (records.count() > 0) {
-
-				num += records.count();
-
-				// LOG.debug("TaskExecutor [" + info.getExecutorId() + "] got "
-				// + String.valueOf(records.count()));
-			}
-
-			// for (ConsumerRecord<String, String> record : records) {
-			// LOG.debug("TaskExecutor [" + info.getExecutorId() + "]: " +
-			// record.toString());
-			// }
-		}
-		pollingTime = System.currentTimeMillis() - startTime;
-
-		if (pollingTime > 0) {
-			long rate = (num / pollingTime) * 1000;
-			LOG.all("TaskExecutor [" + info.getExecutorId() + "] have fetched " + String.valueOf(num) + " (messages) in " + String.valueOf(pollingTime) + " mini seconds and speed is "
-					+ String.valueOf(rate) + " messages/second");
-			info.setPollingRate(rate);
-		} else {
-			LOG.all("TaskExecutor [" + info.getExecutorId() + "] did not get any messages ");
-			info.setPollingRate(0);
-		}
-		info.setNumExecutedTasks(num);
-
-		// FINISH MEASURING
-
-		// zks.setPollingEnable(info.getExecutorId(),
-		// MOHA_Properties.TIMMING_FETCHING_FINISH);
-
-		///////////////////////// padding
-
-		while (zks.getTimming() != MOHA_Properties.TIMMING_FETCHING_FINISH) {
-			// LOG.debug("TaskExecutor [" + info.getExecutorId() + "] before
-			// polling ");
-			for (int i = 0; i < 100; i++) {
-				records = jobQueue.poll(100);
-				num += records.count();
-			}
-
-		}
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] consumer stops");
-	}
-
-	private void KOHA_run() {
-		// String msg = "qwertyuioplkjhgfdsazxcvbnm";
-		String msg_unit = "sleep 0";
-		String msg = "";
-		for (int i = 0; i < 1; i++) {
-			msg += msg_unit;
-		}
-
-		int num = 500000;
-
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] starts calling producer: " + msg);
-		LOG.all("Length = " + String.valueOf(msg.length()));
-
-		KOHA_producer(num, msg);
-
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] starts calling consumer");
-		// KOHA_consumer(num);
-		consumer1();
-
-		// database.insertExecutorInfoToDatabase(info);
-		jobQueue.close();
-		jobQueue.deleteQueue();
-	}
-
-	private void consumer1() {
-		// TODO Auto-generated method stub
-
-		long startingTime = System.currentTimeMillis();
-		long expiredTime = System.currentTimeMillis() + 10 * 1;
-		int numOfCommands = 0;
-		int numOfPolls = 0;
-		int retries = 20;
-		boolean found = false; // get first message from the queue
-		info.setEndingTime(startingTime);
-		LOG.all(info.toString());
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] starts polling and processing jobs got from the job queue");
-
-		MOHA_Zookeeper zkServer = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT, info.getAppId());
-		// MOHA_Zookeeper zks = new
-		// MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT_MOHA, info.getAppId());
-
-		LOG.debug(zkServer.toString());
-		jobQueue.consumerInit();
-
-		while (System.currentTimeMillis() < expiredTime) {
-
-			ConsumerRecords<String, String> records = jobQueue.poll(100);
-
-			if ((records.count() > 0) && (!found)) {
-				info.setFirstMessageTime(System.currentTimeMillis());
-				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] got first messages at tries " + (20 - retries));
-				retries = 5;
-				found = true;
-			}
-
-			if ((records.count() > 0) && ((expiredTime - startingTime) < 1)) {
-
-				jobQueue.commitSync();
-				numOfPolls++;
-				numOfCommands += records.count();
-				info.setEndingTime(System.currentTimeMillis());
-				// expiredTime = System.currentTimeMillis() +
-				// EXTENDED_SESSION_TIME;
-
-				zkServer.setCompletedJobsNum(info.getExecutorId(), numOfCommands);
-
-				// LOG.all("TaskExecutor [" + info.getExecutorId() + "] have
-				// completed " + numOfCommands + " jobs");
-			} else if (retries > 0) {
-
-				// jobQueue.subcribe();
-				// LOG.all("TaskExecutor [" + info.getExecutorId() + "] could no
-				// longer get meseages, try to re-poll");
-				try {
-					Thread.sleep(100);
-					// jobQueue.commitSync();
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				retries--;
-				// expiredTime = System.currentTimeMillis() +
-				// EXTENDED_SESSION_TIME;
-			}
-
-			if (!found) {
-				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] could not found");
-			}
-
-			if (retries == 0) {
-				// zkServer.setPollingEnable(info.getExecutorId(),
-				// MOHA_Properties.TIMMING_FETCHING_FINISH);
-			}
-
-			///////////////////////// padding
-
-			if (zkServer.getTimming() != MOHA_Properties.TIMMING_FETCHING_FINISH) {
-				expiredTime = System.currentTimeMillis() + 1;
-			}
-
-		}
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] have completed " + numOfCommands + " jobs");
-
-		try {
-			Thread.sleep(2000);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-		long executingTime = info.getEndingTime() - info.getFirstMessageTime();
-		info.setExecutionTime(executingTime);
-		info.setNumExecutedTasks(numOfCommands);
-		info.setNumOfPolls(numOfPolls);
-		info.setEndingTime(System.currentTimeMillis());
-		LOG.debug(info.toString());
-		database.insertExecutorInfoToDatabase(info);
-		LOG.info(database.toString());
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] exists");
-		jobQueue.close();
-	}
-
-	public void copyFromHdfs(String source, String dest) throws IOException {
+	public void downloadInputDataFromHDFS(String source, String dest) throws IOException {
 
 		Configuration conf = new Configuration();
 
@@ -390,135 +118,8 @@ public class MOHA_TaskExecutor {
 			fileSystem.close();
 		}
 	}
-
-	private void docking(ConsumerRecords<String, String> records) {
-
-		Configuration conf = new Configuration();
-		FileSystem fileSystem = null;
-
-		try {
-			fileSystem = FileSystem.get(conf);
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-		Path srcPath;
-		Path dstPath;
-
-		for (ConsumerRecord<String, String> record : records) {
-			LOG.debug("TaskExecutor [" + info.getExecutorId() + "]: " + record.toString() + jobQueue.assignment().toString());
-			/* Extract the location of input file in HDFS */
-			srcPath = new Path(record.value());
-			dstPath = new Path(".");
-			// LOG.debug("source " + srcPath.toString());
-			// LOG.debug("dstPath " + dstPath.toString());
-
-			try {
-				/* Copy tar file from HDFS to local directory */
-				long base_ = System.currentTimeMillis();
-				fileSystem.copyToLocalFile(srcPath, dstPath);
-				LOG.all("copyToLocalFile:" + String.valueOf(System.currentTimeMillis() - base_));
-
-				LOG.debug("source " + srcPath.getName());
-				/* Uncompress tar file to tmp folder */
-				List<String> uncompressCommand = new ArrayList<String>();
-				uncompressCommand.add("tar");
-				uncompressCommand.add("-xvzf");
-				uncompressCommand.add(srcPath.getName());
-				uncompressCommand.add("-C");
-				uncompressCommand.add("tmp");
-				LOG.debug(uncompressCommand.toString());
-				ProcessBuilder builder = new ProcessBuilder(uncompressCommand);
-				Process p;
-				String cliResponse;
-
-				p = builder.start();
-				p.waitFor();
-				BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-				while ((cliResponse = br.readLine()) != null) {
-					// LOG.debug(line);
-				}
-				/*
-				 * Copy all files from executable directory to current directory
-				 */
-				File[] listFiles = new File(MOHA_Properties.EXECUTABLE_DIR).listFiles();
-				for (File file : listFiles) {
-					if (file.isFile()) {
-						file.renameTo(new File(file.getName()));
-						file.delete();
-					}
-				}
-				/* Get the list of folders, which is the input of tasks */
-				File[] listFolders = new File("tmp").listFiles();
-
-				for (File folder : listFolders) {
-					Long begin = System.currentTimeMillis();
-					if (folder.isDirectory()) {
-						LOG.debug("Input directory for current task:" + folder.getName());
-						/* Build command to execute the task */
-						List<String> taskCommand = new ArrayList<String>();
-						taskCommand.add("./autodock_vina.sh");
-						taskCommand.add("5-FU");
-						taskCommand.add("tmp/" + folder.getName());
-						taskCommand.add("scPDB_coordinates.tsv");
-						LOG.debug("Command for current task:" + taskCommand.toString());
-						builder = new ProcessBuilder(taskCommand);
-						/* Execute the task */
-						p = builder.start();
-						p.waitFor();
-						BufferedReader buffReader = new BufferedReader(new InputStreamReader(p.getInputStream()));
-						while ((cliResponse = buffReader.readLine()) != null) {
-							LOG.debug(cliResponse);
-						}
-						LOG.all("TaskExecutor [" + info.getExecutorId() + "][" + record.partition() + "] Execution time [" + folder.getName() + "]: "
-								+ String.valueOf(System.currentTimeMillis() - begin));
-						/*
-						 * Delete input folder after the task is completed
-						 */
-						FileUtil.fullyDelete(folder);
-					}
-				}
-				/* Delete the tar tgz file after uncompressed */
-				// fileSystem.delete(new Path(srcPath.getName()), true);
-				FileUtil.fullyDelete(new File(srcPath.getName()));
-			} catch (IOException | InterruptedException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
-
-			// List<String> command = new ArrayList<String>();
-			//
-			// String[] str = record.value().split(" ");
-			// for (String cmd : str) {
-			// command.add(cmd);
-			// }
-			// //LOG.all("TaskExecutor [" + info.getExecutorId() + "]: " +
-			// command.toString());
-			// ProcessBuilder builder = new ProcessBuilder(command);
-			// Process p;
-			// String line;
-			// try {
-			// p = builder.start();
-			// p.waitFor();
-			// BufferedReader br = new BufferedReader(new
-			// InputStreamReader(p.getInputStream()));
-			// while ((line = br.readLine()) != null) {
-			// LOG.debug("Task Executor (" + info.getExecutorId() + ") " +
-			// "from partition "
-			// + record.partition() + " : " + line);
-			// }
-			// } catch (IOException e) {
-			// // TODO Auto-generated catch block
-			// e.printStackTrace();
-			// } catch (InterruptedException e) {
-			// // TODO Auto-generated catch block
-			// e.printStackTrace();
-			// }
-		}
-
-	}
-
-	private boolean executeTask(String record) {
+	/*This function parsers the task description, constructs task command and executes it*/
+	private boolean executeTask(String task_description) {
 
 		Configuration conf = new Configuration();
 		FileSystem fs = null;
@@ -537,9 +138,9 @@ public class MOHA_TaskExecutor {
 		}
 
 		String hdfsHomeDirectory = System.getenv(MOHA_Properties.HDFS_HOME_DIRECTORY);
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] records:" + record);
+		// LOG.all("TaskExecutor [" + info.getExecutorId() + "] records:" + record);
 		begin = System.currentTimeMillis();
-		String[] command_compo = record.split(" ");
+		String[] command_compo = task_description.split(" ");
 		for (int i = 0; i < command_compo.length - 1; i++) {
 			// LOG.all(command_compo[i]);
 		}
@@ -564,15 +165,17 @@ public class MOHA_TaskExecutor {
 			}
 		}
 
-		LOG.debug("Command for current task:" + taskCommand.toString());
+		// LOG.debug("Command for current task:" + taskCommand.toString());
 		builder = new ProcessBuilder(taskCommand);
 		/* Execute the task */
 		try {
 			p = builder.start();
+
 			p.waitFor();
+
 			BufferedReader buffReader = new BufferedReader(new InputStreamReader(p.getInputStream()));
 			while ((cliResponse = buffReader.readLine()) != null) {
-				LOG.debug("TaskExecutor [" + info.getExecutorId() + "]   " + cliResponse);
+				 //LOG.debug("TaskExecutor [" + info.getExecutorId() + "] " + cliResponse);
 			}
 		} catch (IOException | InterruptedException e) {
 			// TODO Auto-generated catch block
@@ -594,14 +197,12 @@ public class MOHA_TaskExecutor {
 			isSuccess = false;
 		}
 
-		// File curDir = new File(".");
-		// getAllFiles(curDir);
-		tempDockingTime = System.currentTimeMillis() - begin;
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "][" + record + "] Execution time " + tempDockingTime);
+		
+		// LOG.all("TaskExecutor [" + info.getExecutorId() + "][" + record + "] Execution time " + tempDockingTime);
 		return isSuccess;
 	}
 
-	private void run() {
+	private void main_thread() {
 		// TODO Auto-generated method stub
 
 		long systemCurrentTime;
@@ -615,7 +216,7 @@ public class MOHA_TaskExecutor {
 
 		LOG.debug("TaskExecutor [" + info.getExecutorId() + "] starts polling and processing jobs got from the job queue");
 		/*
-		 * Construct zookeeper server which is used to inform number of completed tasks to MOHA Client
+		 * Construct a Zookeeper server which is used to inform number of completed tasks to MOHA Client
 		 */
 		MOHA_Zookeeper zkServer = new MOHA_Zookeeper(MOHA_Properties.ZOOKEEPER_ROOT, info.getAppId());
 
@@ -655,7 +256,7 @@ public class MOHA_TaskExecutor {
 					LOG.all(" copyToLocalFile error: " + e.toString());
 				}
 				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Start uncompressing the tar file");
-				getAllFiles(info.getExecutorId(), new File("."));
+				getListOfFiles(info.getExecutorId(), new File("."));
 				/* Uncompress tar file to tmp folder */
 				List<String> uncompressCommand = new ArrayList<String>();
 				uncompressCommand.add("tar");
@@ -681,7 +282,7 @@ public class MOHA_TaskExecutor {
 				}
 
 				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] after uncompress: ");
-				getAllFiles(info.getExecutorId(), new File("."));
+				getListOfFiles(info.getExecutorId(), new File("."));
 			} else {
 				LOG.all("TaskExecutor [" + info.getExecutorId() + "] is running on " + info.getHostname() + " resource localization success");
 				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Start copying files from exe to current directory");
@@ -708,197 +309,254 @@ public class MOHA_TaskExecutor {
 			}
 
 		}
-		LOG.debug("TaskExecutor [" + info.getExecutorId() + "] SUBCRIBE TO THE JOB QUEUE");
-		/* Subscribe to the job queue to be allowed polling task input files */
-		jobQueue.consumerInit();
-		capturing_time = zkServer.getSystemTime();
-		int num = 0;
-		boolean isUpdated = false;
-		boolean isProcessingSuccess = true;
-		/* Polling first jobs from job queue */
-		boolean isStop = zkServer.getStopRequest();
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "]:" + jobQueue.toString());
-		while (!isStop) {
-			/* Polling tasks from job queue */
-			if (jobQueue.isKafka()) {
-				/*
-				 * if(numOfCommands <1000000){ num = 1; }else{ num = 0; }
-				 */
-				ConsumerRecords<String, String> records = jobQueue.poll(100);
-				num = records.count();
+		LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Start executor threads");
+		
+		/* Start executor threads */
+		info.setNumRequestedThreads(60);
+		info.setNumSpecifiedTasks(2);
+		info.setNumExecutedTasks(0);
+		info.setNumExecutingTasks(0);
+		info.setNumActiveThreads(0);
+		info.setQueueEmpty(false);
 
-				if (appType.equals("S")) {
-					for (ConsumerRecord<String, String> record : records) {
-						isProcessingSuccess = executeTask(record.value());
-					}
-				} else {
-					for (ConsumerRecord<String, String> record : records) {
-						// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + record.value());
-					}
-				}
-
-			} else {
-				Message msg = jobQueue.activeMQPoll(100);
-				if (msg != null) {
-					if (msg instanceof TextMessage) {
-						TextMessage textMessage = (TextMessage) msg;
-						String text;
-						try {
-							text = textMessage.getText();
-							if (appType.equals("S")) {
-								isProcessingSuccess = executeTask(text);
-							}
-
-							// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + text);
-						} catch (JMSException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-					} else {
-						if (appType.equals("S")) {
-							isProcessingSuccess = executeTask(msg.toString());
-						}
-						// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + msg);
-					}
-					num = 1;
-				} else {
-					num = 0;
-
-					if (!found) {
-						LOG.all("TaskExecutor [" + info.getExecutorId() + "] does not get any message ");
-						try {
-							Thread.sleep(10000);
-						} catch (InterruptedException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-					}
-
-				}
+		LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Number of executing tasks: " + info.getNumExecutingTasks());
+		for (int i = 0; i < info.getNumRequestedThreads(); i++) {
+			ThreadTaskExecutor taskExecutor = new ThreadTaskExecutor(i);
+			Thread startExecutor = new Thread(taskExecutor);
+			startExecutor.start();
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
-			systemCurrentTime = zkServer.getSystemTime();
-			if (num > 0) {
-				if (!found) {
-
-					info.setFirstMessageTime(systemCurrentTime);
-					info.setWaitingTime(systemCurrentTime - info.getLaunchedTime());
-
-					if (jobQueue.isKafka) {
-						LOG.all("TaskExecutor [" + info.getExecutorId() + "]found first package" + "& partitions: " + jobQueue.assignment().toString());
-					} else {
-						LOG.all("TaskExecutor [" + info.getExecutorId() + "]found first package ActiveMQ");
-					}
-					capturing_time = systemCurrentTime;
-					zkServer.setTimeStart(systemCurrentTime);
-					found = true;
-				}
-				/* Kafka update offset */
-				jobQueue.commitSync();
-				numOfPolls++;
-				numOfCommands += num;
-				isUpdated = false;
-			} else {
-				/* Update ending time */
-				if (!isUpdated) {
-					info.setEndingTime(systemCurrentTime);
-					zkServer.setTimeComplete(systemCurrentTime);
-					zkServer.setNumOfProcessedTasks(info.getExecutorId(), numOfCommands);
-					isUpdated = true;
-					if (found) {
-						LOG.all("TaskExecutor [" + info.getExecutorId() + "] the job queue seems to be empty");
-					}
-				}
-				isStop = zkServer.getStopRequest();
-				if (isStop)
-					LOG.all("TaskExecutor [" + info.getExecutorId() + "] get stop request");
-			}
-			/* Log performance (tasks/second) */
-
-			if (appType.equals("S")) {
-				if (num > 0) {
-					logs += info.getAppId() + " " + info.getExecutorId() + " " + MOHA_Common.convertLongToDate(System.currentTimeMillis()) + "Z " + info.getHostname() + " dockingTime: "
-							+ tempDockingTime + " at " + String.valueOf(zkServer.getSystemTime()) + "\n";
-				}
-
-			} else {
-				/* Log data every one second */
-				if ((systemCurrentTime - capturing_time) > 1000) {
-					double pollingRate = (double) (numOfCommands - numOfCommands_pre) / (double) ((systemCurrentTime - capturing_time) / 1000);
-
-					if (pollingRate > 0) {
-						logs += info.getAppId() + " " + info.getExecutorId() + " " + MOHA_Common.convertLongToDate(System.currentTimeMillis()) + "Z " + info.getHostname() + " " + pollingRate + " "
-								+ String.valueOf(zkServer.getSystemTime()) + "\n";
-						numOfCommands_pre = numOfCommands;
-						capturing_time = systemCurrentTime;
-					}
-
-				}
-			}
-
-			/* if timeout set stop request and break out */
-			if ((systemCurrentTime - info.getLaunchedTime()) > MOHA_Properties.SESSION_MAXTIME_TIMEOUT) {
-				zkServer.setTimeComplete(zkServer.getSystemTime());
-				zkServer.setNumOfProcessedTasks(info.getExecutorId(), numOfCommands);
-				zkServer.setStopRequest(true);
-				LOG.all("TaskExecutor [" + info.getExecutorId() + "] timeout");
-				break;
-			}
-
-			if (!isProcessingSuccess) {
-				zkServer.setTimeComplete(zkServer.getSystemTime());
-				zkServer.setNumOfProcessedTasks(info.getExecutorId(), numOfCommands);
-				LOG.all("TaskExecutor [" + info.getExecutorId() + "] get errors during execution");
-				break;
-			}
-
 		}
+		int numPreviousCompletedTasks;
+		int numCompletedTasksPerWindow;
+		long previousCheckingPoint, windowsTime;
+		float previousPerformance, currentPerformance;
+		int previousNumExecutingTasks = info.getNumExecutingTasks();
+		
+		
+		/* Wait for at least one thread started */
+		while (info.getNumRunningThreads() == 0) {
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			if(previousNumExecutingTasks!= info.getNumExecutingTasks()){
+				previousNumExecutingTasks = info.getNumExecutingTasks();
+				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Number of executing tasks: " + info.getNumExecutingTasks());
+			}
+		}
+		
+		/* Wait for fist windows */
+		previousCheckingPoint = System.currentTimeMillis();
+		while (info.getNumExecutedTasks() < 2 * info.getNumSpecifiedTasks()) {
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			if(previousNumExecutingTasks!= info.getNumExecutingTasks()){
+				previousNumExecutingTasks = info.getNumExecutingTasks();
+				LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Number of executing tasks: " + info.getNumExecutingTasks());
+			}
+		}
+		
+		windowsTime = System.currentTimeMillis() - previousCheckingPoint;
+		numPreviousCompletedTasks = info.getNumExecutedTasks();
+		numCompletedTasksPerWindow = numPreviousCompletedTasks;
+		previousCheckingPoint = System.currentTimeMillis();
 
+		previousPerformance = (float) (60000 * numCompletedTasksPerWindow / windowsTime);
+		currentPerformance = previousPerformance;
+		
+		LOG.debug("TaskExecutor [" + info.getExecutorId() + "] Number of tasks per window: " + (numCompletedTasksPerWindow) 
+				+ " #activeThreads: " + (info.getNumActiveThreads())
+				+ " #exectutedTasks: " + info.getNumExecutedTasks() 
+				+ " windowsSize (seconds): " 	+ windowsTime / 1000 
+				+ " performance (tasks/minute) : " + currentPerformance
+				+ " #executing tasks: " + info.getNumExecutingTasks() 
+				+ " #specifiedNumber: " + info.getNumSpecifiedTasks() 
+				);
+		
+		boolean direction = false;
+		int step = 1;
+		int windowsRatio = 3;
+		/* Wait for every thread completed */
+		while (info.getNumRunningThreads() > 0) {
+			if (info.isQueueEmpty())
+				step = 0;
+			if (direction) {
+				if (info.getNumSpecifiedTasks() > step) {
+					info.setNumSpecifiedTasks(info.getNumSpecifiedTasks() - step);
+				} else {
+					direction = !direction;
+				}
+
+			} else {
+				info.setNumSpecifiedTasks(info.getNumSpecifiedTasks() + step);
+			}
+			
+			while ((info.getNumExecutedTasks() - numPreviousCompletedTasks) < windowsRatio * info.getNumSpecifiedTasks()) {
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+								
+				if(previousNumExecutingTasks!= info.getNumExecutingTasks()){
+					previousNumExecutingTasks = info.getNumExecutingTasks();
+					LOG.debug("TaskExecutor [" + info.getExecutorId() + "][" + info.getHostname() 
+					+ "] Number of running tasks: " + info.getNumExecutingTasks());
+				}
+				if (info.getNumRunningThreads() == 0)
+					break;
+			}
+			numCompletedTasksPerWindow = info.getNumExecutedTasks() - numPreviousCompletedTasks;
+			numPreviousCompletedTasks = info.getNumExecutedTasks();
+
+			windowsTime = System.currentTimeMillis() - previousCheckingPoint;
+			previousCheckingPoint = System.currentTimeMillis();
+
+			currentPerformance = (float)(60000 * numCompletedTasksPerWindow / windowsTime);
+
+			if (currentPerformance < previousPerformance) {
+				direction = !direction;
+				//windowsRatio +=2;
+			}
+
+			previousPerformance = currentPerformance;
+			/*
+			 * wait until all threads exit try { Thread.sleep(windowsTime); } catch (InterruptedException e) { // TODO Auto-generated catch block e.printStackTrace(); } if((info.getNumExecutedTasks()
+			 * - numPreviousCompletedTasks) < numCompletedTasksPerWindow){ nagative = !nagative; } numCompletedTasksPerWindow = info.getNumExecutedTasks() - numPreviousCompletedTasks;
+			 * numPreviousCompletedTasks = info.getNumExecutedTasks();
+			 */
+
+						
+			
+			LOG.debug("TaskExecutor [" + info.getExecutorId() +"][" + info.getHostname()
+					+ "] #tasks/window: " + (numCompletedTasksPerWindow)
+					+ " #specifiedNumber: " + info.getNumSpecifiedTasks()
+					+ " #activeThreads: " + (info.getNumActiveThreads())
+					+ " #running tasks: " + info.getNumExecutingTasks()
+					+ " performance (tasks/minute) : " + currentPerformance
+					+ " windowsSize (seconds): " 	+ windowsTime / 1000
+					+ " #exectutedTasks: " + info.getNumExecutedTasks() 				 	
+					 
+					);			
+			
+			
+		}
+		zkServer.setTimeComplete(zkServer.getSystemTime());
+		zkServer.setNumOfProcessedTasks(info.getExecutorId(), info.getNumExecutedTasks());
+		zkServer.setStopRequest(true);
+
+		systemCurrentTime = zkServer.getSystemTime();
 		/* Display list of files and directories for debugging */
 		// curDir = new File(".");
 		// getAllFiles(curDir);
 
-		LOG.all("TaskExecutor [" + info.getExecutorId() + "] have completed " + numOfCommands + " tasks");
+		LOG.all("TaskExecutor [" + info.getExecutorId() + "] have completed " + info.getNumExecutedTasks() + " tasks");
 		systemCurrentTime = zkServer.getSystemTime();
+
 		info.setEndingTime(systemCurrentTime);
-		long executingTime = info.getEndingTime() - info.getFirstMessageTime();
-		info.setExecutionTime(executingTime);
-		info.setNumExecutedTasks(numOfCommands);
+		info.setExecutionTime(info.getEndingTime() - info.getFirstMessageTime());
 		info.setNumOfPolls(numOfPolls);
-
 		info.setPollingRate((info.getNumExecutedTasks() / (info.getExecutionTime() / 1000)));
-
 		LOG.debug(info.toString());
 		database.insertExecutorInfoToDatabase(info);
+
 		zkServer.setResultsExe(info);
 		zkServer.setPerformanceExe(info.getExecutorId(), logs);
 		zkServer.close();
+
 		LOG.info(database.toString());
 		LOG.all("TaskExecutor [" + info.getExecutorId() + "] exits");
-		jobQueue.close();
 	}
 
 	protected class ThreadTaskExecutor implements Runnable {
+		private int id;
+
+		public ThreadTaskExecutor(int id) {
+			// TODO Auto-generated constructor stub
+			this.id = id;
+		}
 
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
-			LOG.debug("TaskExecutor [" + info.getExecutorId() + "] starts polling and processing jobs got from the job queue");
+			
+			while (info.getNumSpecifiedTasks() <= id) {
+				try {
+					Thread.sleep(100);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}	
+
+				if (info.isQueueEmpty()) {
+					LOG.debug("TaskExecutor [" + info.getExecutorId() + "][" + id + "] queue empty");
+					break;
+				}
+			}
+
+			
+			LOG.debug("TaskExecutor [" + info.getExecutorId() + "][" + id + "] starts polling and processing jobs got from the job queue");
 			/*
 			 * Construct zookeeper server which is used to inform number of completed tasks to MOHA Client
-			 */						
-			String appType = System.getenv(MOHA_Properties.APP_TYPE);
+			 */
 
-			LOG.debug("TaskExecutor [" + info.getExecutorId() + "] SUBCRIBE TO THE JOB QUEUE");
+			String appType = System.getenv(MOHA_Properties.APP_TYPE);
+			String zookeeperConnect = System.getenv(MOHA_Properties.KAFKA_ZOOKEEPER_CONNECT);
+			String bootstrapServer = System.getenv(MOHA_Properties.KAFKA_ZOOKEEPER_BOOTSTRAP_SERVER);
+			String queueType = System.getenv(MOHA_Properties.CONF_QUEUE_TYPE);
+			MOHA_Queue jobQueue;
+			if (queueType.equals("kafka")) {
+				jobQueue = new MOHA_Queue(zookeeperConnect, bootstrapServer, info.getQueueName());
+			} else {
+				jobQueue = new MOHA_Queue(System.getenv(MOHA_Properties.CONF_ACTIVEMQ_SERVER), info.getQueueName());
+			}
+
+			info.setNumRunningThreads(info.getNumRunningThreads() + 1);
+
 			/* Subscribe to the job queue to be allowed polling task input files */
-			jobQueue.consumerInit();			
+			jobQueue.consumerInit();
 
 			/* Polling first jobs from job queue */
-			LOG.all("TaskExecutor [" + info.getExecutorId() + "]:" + jobQueue.toString());
-			
+
 			boolean isProcessingSuccess = false;
+			boolean isActive = false;
 			int num = 0;
-			while (info.getNumRunningThreads() <= info.getNumRequestedThreads()) {
+			while (info.getNumRunningThreads() > 0) {
 				/* Polling tasks from job queue */
+				while (info.getNumSpecifiedTasks() <= id) {
+					try {
+						Thread.sleep(100);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					if (isActive) {
+						isActive = false;
+						info.setNumActiveThreads(info.getNumActiveThreads() - 1);
+					}
+
+					if (info.isQueueEmpty()) {
+						LOG.debug("TaskExecutor [" + info.getExecutorId() + "][" + id + "] queue empty");
+						break;
+					}
+				}
+				if ((!isActive) && (!info.isQueueEmpty())) {
+					isActive = true;
+					info.setNumActiveThreads(info.getNumActiveThreads() + 1);
+				}
+				info.setNumOfPolls(info.getNumOfPolls() + 1);
 				if (jobQueue.isKafka()) {
 					/*
 					 * if(numOfCommands <1000000){ num = 1; }else{ num = 0; }
@@ -917,51 +575,87 @@ public class MOHA_TaskExecutor {
 					}
 
 				} else {
-					Message msg = jobQueue.activeMQPoll(100);
+					Message msg = jobQueue.activeMQPoll(1000);
 					if (msg != null) {
 						if (msg instanceof TextMessage) {
 							TextMessage textMessage = (TextMessage) msg;
 							String text;
 							try {
 								text = textMessage.getText();
+								int temp;
 								if (appType.equals("S")) {
+									//LOG.all("TaskExecutor [" + info.getExecutorId() + "][" + id + "]1 #runningTasks: " + info.getNumExecutingTasks());
+									temp = info.getNumExecutingTasks();
+									info.setNumExecutingTasks(temp + 1);
+
 									isProcessingSuccess = executeTask(text);
+									//LOG.all("TaskExecutor [" + info.getExecutorId() + "][" + id + "]2 #runningTasks: " + info.getNumExecutingTasks());
+									temp = info.getNumExecutingTasks();
+									info.setNumExecutingTasks(temp - 1);
 								}
 
-								// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + text);
+								 //LOG.all("TaskExecutor [" + info.getExecutorId() + "][" + id + "]Received_: " + text);
 							} catch (JMSException e) {
 								// TODO Auto-generated catch block
 								e.printStackTrace();
 							}
 						} else {
 							if (appType.equals("S")) {
+
+								info.setNumExecutingTasks(info.getNumExecutingTasks() + 1);
+
 								isProcessingSuccess = executeTask(msg.toString());
+
+								info.setNumExecutingTasks(info.getNumExecutingTasks() - 1);
 							}
-							// LOG.all("TaskExecutor [" + info.getExecutorId() + "]Received: " + msg);
+							 LOG.all("TaskExecutor [" + info.getExecutorId() + "][" + id + "]Received: " + msg);
 						}
 						num = 1;
+						info.setQueueEmpty(false);
+						info.setNumQueueFail(0);
 					} else {
+						try {
+							Thread.sleep(1000);
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
 						num = 0;
-						break;
+						LOG.debug("TaskExecutor [" + info.getExecutorId() + "][" + id + "] could not get any message");
+						info.setQueueEmpty(true);
+						info.setNumQueueFail(info.getNumQueueFail() + 1);
+						if (info.getNumQueueFail() > 5) {
+							isProcessingSuccess = false;
+							break;
+						} else {
+							isProcessingSuccess = true;
+						}
 					}
-				}				
+				}
 				info.setNumExecutedTasks(info.getNumExecutedTasks() + num);
-				if(!isProcessingSuccess)break;
+				if (!isProcessingSuccess) {
+					LOG.debug("TaskExecutor [" + info.getExecutorId() + "][" + id + "] fail to execture tasks");
+					break;
+				}
 			}
-			
+			LOG.debug("TaskExecutor [" + info.getExecutorId() + "][" + id + "] leaves");
 			info.setNumRunningThreads(info.getNumRunningThreads() - 1);
+			if (isActive) {
+				isActive = false;
+				info.setNumActiveThreads(info.getNumActiveThreads() - 1);
+			}
 		}
 
 	}
 
-	private static void getAllFiles(int executorId, File curDir) {
+	private static void getListOfFiles(int executorId, File curDir) {
 
 		File[] filesList = curDir.listFiles();
 
 		for (File f : filesList) {
 			if (f.isDirectory()) {
 				LOG.debug("TaskExecutor [" + executorId + "] Directory " + f.getName());
-				getAllFiles(executorId, f);
+				getListOfFiles(executorId, f);
 			}
 			if (f.isFile()) {
 				LOG.debug("TaskExecutor [" + executorId + "] Files: " + curDir.getPath() + "/" + f.getName());

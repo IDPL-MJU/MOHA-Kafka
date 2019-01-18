@@ -1,22 +1,27 @@
 package org.kisti.moha;
 
 public class MOHA_ExecutorInfo {
-	private String appId;
-	private int executorId;
-	private String containerId;
-	private long firstMessageTime;
-	private String hostname;
-	private long launchedTime;
-	private int numExecutedTasks;
-	private long executionTime;
-	private int pollingTime;
-	private long endingTime;
-	private String queueName;
-	private int pushingTime;
-	private long pushingRate;
-	private long waitingTime;
-	private int numRequestedThreads;
-	private int numRunningThreads;
+	private volatile String appId;
+	private volatile int executorId;
+	private volatile String containerId;
+	private volatile long firstMessageTime;
+	private volatile String hostname;
+	private volatile long launchedTime;
+	private volatile int numExecutedTasks;
+	private volatile long executionTime;
+	private volatile int pollingTime;
+	private volatile long endingTime;
+	private volatile String queueName;
+	private volatile int pushingTime;
+	private volatile long pushingRate;
+	private volatile long waitingTime;
+	private volatile int numRequestedThreads;
+	private volatile int numRunningThreads;
+	private volatile int numExecutingTasks;
+	private volatile int numSpecifiedTasks;
+	private volatile int numActiveThreads;
+	private volatile int numQueueFail;
+	private volatile boolean isQueueEmpty;
 	
 	public long getPushingRate() {
 		return pushingRate;
@@ -184,6 +189,46 @@ public class MOHA_ExecutorInfo {
 
 	public void setNumRunningThreads(int numRunningThreads) {
 		this.numRunningThreads = numRunningThreads;
+	}
+
+	public int getNumExecutingTasks() {
+		return numExecutingTasks;
+	}
+
+	public void setNumExecutingTasks(int numExecutingTasks) {
+		this.numExecutingTasks = numExecutingTasks;
+	}
+
+	public int getNumSpecifiedTasks() {
+		return numSpecifiedTasks;
+	}
+
+	public void setNumSpecifiedTasks(int numSpecifiedTasks) {
+		this.numSpecifiedTasks = numSpecifiedTasks;
+	}
+
+	public boolean isQueueEmpty() {
+		return isQueueEmpty;
+	}
+
+	public void setQueueEmpty(boolean isQueueEmpty) {
+		this.isQueueEmpty = isQueueEmpty;
+	}
+
+	public int getNumActiveThreads() {
+		return numActiveThreads;
+	}
+
+	public void setNumActiveThreads(int numActiveThreads) {
+		this.numActiveThreads = numActiveThreads;
+	}
+
+	public int getNumQueueFail() {
+		return numQueueFail;
+	}
+
+	public void setNumQueueFail(int numQueueFail) {
+		this.numQueueFail = numQueueFail;
 	}
 
 }
